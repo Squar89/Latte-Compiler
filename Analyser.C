@@ -41,7 +41,6 @@ void Analyser::analyseProgram(Program *p)
 {
   functionsMap.clear();
   getFunctionsDefinitions((Prog*) p);
-  //functionsCalled.clear();
 
   visitProg((Prog*) p);
 
@@ -50,6 +49,13 @@ void Analyser::analyseProgram(Program *p)
     printf("Error: main not found. Main function must be of int type and take no arguments\n");
     exit(MAIN_NOT_FOUND);
   }
+
+  /* TODO DEBUG later so there is no loose values on stack
+  while (!typesStack.empty()) {
+    printf("%d\n", typesStack.top());
+    typesStack.pop();
+  }
+  */
 }
 
 //this implementation assumes that function names must be unique.
@@ -67,6 +73,34 @@ void Analyser::getFunctionsDefinitions(Prog *prog)
     }
 
     functionsMap.insert(std::make_pair(fn_def->ident_, fn_def));
+  }
+}
+
+//This function assumes that types to check are already on the typeStack
+void Analyser::checkTypesMatch(int lineNumber)
+{
+  int type_1, type_2;
+
+  if (!typesStack.empty()) {
+    type_1 = typesStack.top();
+    typesStack.pop();
+  }
+  else {
+    printf("Unexpected error occurred at line %d (Trying to access empty stack)\n", lineNumber);
+    exit(UNEXPECTED_ERROR);
+  }
+  if (!typesStack.empty()) {
+    type_2 = typesStack.top();
+    typesStack.pop();
+  }
+  else {
+    printf("Unexpected error occurred at line %d (Trying to access empty stack)\n", lineNumber);
+    exit(UNEXPECTED_ERROR);
+  }
+
+  if (type_1 != type_2) {
+    printf("Error at line %d: types do not match\n", lineNumber);
+    exit(TYPE_ERROR);
   }
 }
 
@@ -237,16 +271,12 @@ void Analyser::visitStr(Str *str)
 
 void Analyser::visitBool(Bool *bool_)
 {
-  /* Code For Bool Goes Here */
-
-
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitVoid(Void *void_)
 {
-  /* Code For Void Goes Here */
-
-
+  typesStack.push(VOID_CODE);
 }
 
 void Analyser::visitFun(Fun *fun)
@@ -275,16 +305,12 @@ void Analyser::visitELitInt(ELitInt *e_lit_int)
 
 void Analyser::visitELitTrue(ELitTrue *e_lit_true)
 {
-  /* Code For ELitTrue Goes Here */
-
-
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitELitFalse(ELitFalse *e_lit_false)
 {
-  /* Code For ELitFalse Goes Here */
-
-
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEApp(EApp *e_app)
@@ -332,6 +358,7 @@ void Analyser::visitEMul(EMul *e_mul)
   e_mul->mulop_->accept(this);
   e_mul->expr_2->accept(this);
 
+  checkTypesMatch(e_mul->mulop_->line_number);
 }
 
 void Analyser::visitEAdd(EAdd *e_add)
@@ -342,16 +369,16 @@ void Analyser::visitEAdd(EAdd *e_add)
   e_add->addop_->accept(this);
   e_add->expr_2->accept(this);
 
+  checkTypesMatch(e_add->addop_->line_number);
 }
 
 void Analyser::visitERel(ERel *e_rel)
 {
-  /* Code For ERel Goes Here */
-
   e_rel->expr_1->accept(this);
   e_rel->relop_->accept(this);
   e_rel->expr_2->accept(this);
 
+  checkTypesMatch(e_rel->relop_->line_number);
 }
 
 void Analyser::visitEAnd(EAnd *e_and)
@@ -501,27 +528,27 @@ void Analyser::visitListExpr(ListExpr *list_expr)
 
 void Analyser::visitInteger(Integer x)
 {
-  /* Code for Integer Goes Here */
+  typesStack.push(INT_CODE);
 }
 
 void Analyser::visitChar(Char x)
 {
-  /* Code for Char Goes Here */
+  typesStack.push(CHAR_CODE);
 }
 
 void Analyser::visitDouble(Double x)
 {
-  /* Code for Double Goes Here */
+  typesStack.push(DOUBLE_CODE);
 }
 
 void Analyser::visitString(String x)
 {
-  /* Code for String Goes Here */
+  typesStack.push(STRING_CODE);
 }
 
 void Analyser::visitIdent(Ident x)
 {
-  /* Code for Ident Goes Here */
+  typesStack.push(IDENT_CODE);
 }
 
 

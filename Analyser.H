@@ -2,12 +2,24 @@
 #define ANALYSER_HEADER
 
 #include <unordered_map>
+#include <stack>
 #include "Absyn.H"
 
 /* ERROR CODES */
+#define UNEXPECTED_ERROR    -1
 #define MAIN_NOT_FOUND      1
 #define DUPLICATE_FUN_NAME  2
 #define TYPE_ERROR          3
+#define FUNCTION_NOT_FOUND  4
+
+/* STACK CODES */
+#define INT_CODE            1
+#define CHAR_CODE           2
+#define DOUBLE_CODE         3
+#define STRING_CODE         4
+#define IDENT_CODE          5
+#define VOID_CODE           6
+#define BOOL_CODE           7
 
 class Analyser : public Visitor
 {
@@ -88,8 +100,10 @@ public:
 
 private:
   bool correctMainExists();
+  void checkTypesMatch(int lineNumber);
 
   std::unordered_map<Ident, FnDef*> functionsMap;
+  std::stack<int> typesStack;
   //std::unordered_map<Ident, ListType*> functionsCalled;
 };
 
