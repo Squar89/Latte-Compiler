@@ -76,7 +76,7 @@ void Analyser::getFunctionsDefinitions(Prog *prog)
   }
 }
 
-//This function assumes that types to check are already on the typeStack
+//This function assumes that types to check are already on the typesStack
 void Analyser::checkTypesMatch(int lineNumber)
 {
   int type_1, type_2;
@@ -102,6 +102,26 @@ void Analyser::checkTypesMatch(int lineNumber)
     printf("Error at line %d: types do not match\n", lineNumber);
     exit(TYPE_ERROR);
   }
+}
+
+void Analyser::checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<int> &reversedCallTypes) {
+  auto it = functionsMap.find(ident);
+  if (it == functionsMap.end()) {
+    printf("Error at line %d: called function was not found. Define your function first\n", lineNumber);
+    exit(FUNCTION_NOT_FOUND);
+  }
+
+  typesStack.push(PAUSE_CODE);
+  it->second->listarg_->accept(this);
+  auto temp = reversedCallTypes.end();
+  temp--;
+  for (auto revIt = temp; revIt != reversedCallTypes.begin(); revIt--) {
+    typesStack.push(*revIt);
+    checkTypesMatch(lineNumber);
+  }
+  typesStack.push(*(reversedCallTypes.begin()));
+  checkTypesMatch(lineNumber);
+  typesStack.pop();//pop PAUSE_CODE
 }
 
 void Analyser::visitProg(Prog *prog)
@@ -265,7 +285,7 @@ void Analyser::visitInt(Int *int_)
 void Analyser::visitStr(Str *str)
 {
   /* Code For Str Goes Here */
-
+  typesStack.push(STRING_CODE);
 
 }
 
@@ -317,13 +337,17 @@ void Analyser::visitEApp(EApp *e_app)
 {
   /* Code For EApp Goes Here */
 
+  typesStack.push(PAUSE_CODE);
   visitIdent(e_app->ident_);
   e_app->listexpr_->accept(this);
 
-  /* get list of types from expressions above */
-  //TODO
-  //ListType* types = new ListType;
-  //functionsCalled.insert(std::make_pair(e_app->ident_, types));
+  std::vector<int> functionTypes;
+  while (typesStack.top() != PAUSE_CODE) {
+    functionTypes.push_back(typesStack.top());
+    typesStack.pop();
+  }
+  typesStack.pop();//pop PAUSE_CODE
+  checkTypesFunctionCall(e_app->line_number, e_app->ident_, functionTypes);
 }
 
 void Analyser::visitEString(EString *e_string)
@@ -358,18 +382,22 @@ void Analyser::visitEMul(EMul *e_mul)
   e_mul->mulop_->accept(this);
   e_mul->expr_2->accept(this);
 
+  int resultType = typesStack.top();
+
   checkTypesMatch(e_mul->mulop_->line_number);
+  typesStack.push(resultType);
 }
 
 void Analyser::visitEAdd(EAdd *e_add)
 {
-  /* Code For EAdd Goes Here */
-
   e_add->expr_1->accept(this);
   e_add->addop_->accept(this);
   e_add->expr_2->accept(this);
 
+  int resultType = typesStack.top();
+
   checkTypesMatch(e_add->addop_->line_number);
+  typesStack.push(resultType);
 }
 
 void Analyser::visitERel(ERel *e_rel)
@@ -379,6 +407,7 @@ void Analyser::visitERel(ERel *e_rel)
   e_rel->expr_2->accept(this);
 
   checkTypesMatch(e_rel->relop_->line_number);
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEAnd(EAnd *e_and)
@@ -388,6 +417,7 @@ void Analyser::visitEAnd(EAnd *e_and)
   e_and->expr_1->accept(this);
   e_and->expr_2->accept(this);
 
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEOr(EOr *e_or)
@@ -397,6 +427,7 @@ void Analyser::visitEOr(EOr *e_or)
   e_or->expr_1->accept(this);
   e_or->expr_2->accept(this);
 
+  typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitPlus(Plus *plus)
@@ -548,7 +579,7 @@ void Analyser::visitString(String x)
 
 void Analyser::visitIdent(Ident x)
 {
-  typesStack.push(IDENT_CODE);
+  
 }
 
 

@@ -20,6 +20,7 @@
 #define IDENT_CODE          5
 #define VOID_CODE           6
 #define BOOL_CODE           7
+#define PAUSE_CODE          -1
 
 class Analyser : public Visitor
 {
@@ -101,9 +102,11 @@ public:
 private:
   bool correctMainExists();
   void checkTypesMatch(int lineNumber);
+  void checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<int> &reversedCallTypes);
 
   std::unordered_map<Ident, FnDef*> functionsMap;
   std::stack<int> typesStack;
+  std::unordered_map<Ident, std::pair<Type*, Expr*> > globalVariables, localVariables, hiddenVariables;
   //std::unordered_map<Ident, ListType*> functionsCalled;
 };
 
