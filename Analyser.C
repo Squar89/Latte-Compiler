@@ -136,21 +136,39 @@ void Analyser::checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<i
 
 void Analyser::visitProg(Prog *prog)
 {
-  /* Code For Prog Goes Here */
-
   prog->listtopdef_->accept(this);
-
 }
 
 void Analyser::visitFnDef(FnDef *fn_def)
 {
   fn_def->type_->accept(this);
+
+  /* Store the function return type */
+  currentReturnType = typesStack.top();
+  typesStack.pop();
+
+  /* Set all the return checking variables to false */
+  returnFound = false;
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
+
   visitIdent(fn_def->ident_);
 
   variablesMap.clear();
   fn_def->listarg_->accept(this);
   fn_def->block_->accept(this);
   variablesMap.clear();
+
+  /* Check if the last statement in this function was a return */
+  if (!lastStmtWasReturn && !(ifReturn && elseReturn)) {
+    printf("Error at line %d: Function must end with return statement\n", fn_def->line_number);
+    if (returnFound) {
+      printf("Make sure that all possible paths inside this function end with a return.\n");
+      printf("Also make sure that there is nothing after the final return.\n");
+    }
+    exit(RETURN_NOT_FOUND);
+  }
 }
 
 void Analyser::visitAr(Ar *ar)
@@ -161,7 +179,7 @@ void Analyser::visitAr(Ar *ar)
   /* Try to add the argument's ident and type to the variablesMap */
   if (variablesMap.find(ar->ident_) != variablesMap.end()) {
     printf("Error at line %d: variable %s was declared earlier\n", ar->line_number, ar->ident_.c_str());
-    exit(VARIABLE_REDECLARED);
+    exit(VAR_REDECLARATION);
   }
 
   /* These are the function's arguments so we insert them with the depth of a first block of this function */
@@ -171,6 +189,7 @@ void Analyser::visitAr(Ar *ar)
 void Analyser::visitBlk(Blk *blk)
 {
   currentDepth++;
+
   /* Prepare overshadowed variables vector for this block */
   if (localRedeclVar.size() != currentDepth) {
     printf("Unexpected error occurred at line %d (Wrong localRedeclVar size)\n", blk->line_number);
@@ -210,23 +229,19 @@ void Analyser::visitBlk(Blk *blk)
   currentDepth--;
 }
 
-void Analyser::visitEmpty(Empty *empty)
-{
-  /* Code For Empty Goes Here */
-
-
-}
+void Analyser::visitEmpty(Empty *empty) {/* Do nothing */}
 
 void Analyser::visitBStmt(BStmt *b_stmt)
 {
-  /* Code For BStmt Goes Here */
-
   b_stmt->block_->accept(this);
-
 }
 
 void Analyser::visitDecl(Decl *decl)
 {
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
+
   /* This visit should leave declaration type on the stack */
   decl->type_->accept(this);
 
@@ -239,78 +254,176 @@ void Analyser::visitDecl(Decl *decl)
 
 void Analyser::visitAss(Ass *ass)
 {
-  /* Code For Ass Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   visitIdent(ass->ident_);
   ass->expr_->accept(this);
 
+  /* Check if this variable exists in current environment and if var's type match the expressios's type */
+  if (auto it = variablesMap.find(ass->ident_); it != variablesMap.end()) {
+    if (it->second.first != typesStack.top()) {
+      printf("Error at line %d. Assigned value type is different than variable's type.\n", ass->line_number);
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    printf("Error at line %d. Used variable \"%s\" needs to be declared first.\n",
+            ass->line_number, ass->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Pop expression type from the stack */
+  typesStack.pop();
 }
 
 void Analyser::visitIncr(Incr *incr)
 {
-  /* Code For Incr Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   visitIdent(incr->ident_);
 
+  /* Variable should exist and be of type int to be incremented */
+  if (auto it = variablesMap.find(incr->ident_); it != variablesMap.end()) {
+    if (it->second.second != INT_CODE) {
+      printf("Error at line %d. Variable \"%s\" must be of type int to be incremented.\n",
+              incr->line_number, incr->ident_.c_str());
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    printf("Error at line %d. Used variable \"%s\" needs to be declared first..\n",
+            incr->line_number, incr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
 }
 
 void Analyser::visitDecr(Decr *decr)
 {
-  /* Code For Decr Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   visitIdent(decr->ident_);
 
+  /* Variable should exist and be of type int to be decremented */
+  if (auto it = variablesMap.find(decr->ident_); it != variablesMap.end()) {
+    if (it->second.second != INT_CODE) {
+      printf("Error at line %d. Variable \"%s\" must be of type int to be incremented.\n",
+              decr->line_number, decr->ident_.c_str());
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    printf("Error at line %d. Used variable \"%s\" needs to be declared first..\n",
+            decr->line_number, decr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
 }
 
 void Analyser::visitRet(Ret *ret)
 {
-  /* Code For Ret Goes Here */
-
   ret->expr_->accept(this);
+
+  returnFound = true;
+  lastStmtWasReturn = true;
+
+  /* Check if this return's expresion is of the same type as the current function */
+  if (currentReturnType != typesStack.top()) {
+    printf("Error at line %d. The return and function types do not match\n", ret->line_number);
+    exit(TYPE_ERROR);
+  }
+
 
 }
 
 void Analyser::visitVRet(VRet *v_ret)
 {
-  /* Code For VRet Goes Here */
+  returnFound = true;
+  lastStmtWasReturn = true;
 
-
+  /* Check if current function's type is void */
+  if (currentReturnType != VOID_CODE) {
+    printf("Error at line %d. Function expects non void return\n", v_ret->line_number);
+    exit(TYPE_ERROR);
+  }
 }
 
 void Analyser::visitCond(Cond *cond)
 {
-  /* Code For Cond Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   cond->expr_->accept(this);
-  cond->stmt_->accept(this);
+  /* TODO I could also check if there is a true/false literal here will it be needed */
 
+  /* Expression needs to be of boolean type */
+  if (typesStack.top() != BOOL_CODE) {
+    printf("Error at line %d. Condition inside of if must be boolean\n", cond->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  cond->stmt_->accept(this);
+  lastStmtWasReturn = false;
 }
 
 void Analyser::visitCondElse(CondElse *cond_else)
 {
-  /* Code For CondElse Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   cond_else->expr_->accept(this);
-  cond_else->stmt_1->accept(this);
-  cond_else->stmt_2->accept(this);
 
+  /* Expression needs to be of boolean type */
+  if (typesStack.top() != BOOL_CODE) {
+    printf("Error at line %d. Condition inside of if must be boolean\n", cond_else->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  cond_else->stmt_1->accept(this);
+  if(lastStmtWasReturn) {
+    ifReturn = true;
+    lastStmtWasReturn = false;
+  }
+  cond_else->stmt_2->accept(this);
+  if (lastStmtWasReturn) {
+    elseReturn = true;
+    lastStmtWasReturn = false;
+  }
 }
 
 void Analyser::visitWhile(While *while_)
 {
-  /* Code For While Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   while_->expr_->accept(this);
-  while_->stmt_->accept(this);
 
+  /* Expression needs to be of boolean type */
+  if (typesStack.top() != BOOL_CODE) {
+    printf("Error at line %d. Condition inside of if must be boolean\n", while_->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  while_->stmt_->accept(this);
 }
 
 void Analyser::visitSExp(SExp *s_exp)
 {
-  /* Code For SExp Goes Here */
+  lastStmtWasReturn = false;
+  ifReturn = false;
+  elseReturn = false;
 
   s_exp->expr_->accept(this);
-
 }
 
 void Analyser::declareVariable(Ident ident, int lineNumber) {
@@ -319,7 +432,7 @@ void Analyser::declareVariable(Ident ident, int lineNumber) {
     /* Check if this variable was declared in the current block */
     if (it->second.second == currentDepth) {
       printf("Error at line %d: variable %s was declared earlier\n", lineNumber, ident.c_str());
-      exit(VARIABLE_REDECLARED);
+      exit(VAR_REDECLARATION);
     }
     /* Else add variable to the overshadowed vector and remove it from variablesMap */
     else {
@@ -386,6 +499,7 @@ void Analyser::visitVoid(Void *void_)
 void Analyser::visitFun(Fun *fun)
 {
   /* Code For Fun Goes Here */
+  printf("Hello there, are you lost?\n"); /* TODO */
 
   fun->type_->accept(this);
   fun->listtype_->accept(this);
@@ -393,18 +507,20 @@ void Analyser::visitFun(Fun *fun)
 
 void Analyser::visitEVar(EVar *e_var)
 {
-  /* Code For EVar Goes Here */
-
   visitIdent(e_var->ident_);
 
+  if (auto it = variablesMap.find(e_var->ident_); it != variablesMap.end()) {
+    typesStack.push(it->second.first);
+  }
+  else {
+    printf("Error at line %d. Unknown variable used \"%s\"\n", e_var->line_number, e_var->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
 }
 
 void Analyser::visitELitInt(ELitInt *e_lit_int)
 {
-  /* Code For ELitInt Goes Here */
-
   visitInteger(e_lit_int->integer_);
-
 }
 
 void Analyser::visitELitTrue(ELitTrue *e_lit_true)
@@ -434,39 +550,49 @@ void Analyser::visitEApp(EApp *e_app)
 
 void Analyser::visitEString(EString *e_string)
 {
-  /* Code For EString Goes Here */
-
   visitString(e_string->string_);
-
 }
 
 void Analyser::visitNeg(Neg *neg)
 {
-  /* Code For Neg Goes Here */
-
   neg->expr_->accept(this);
 
+  /* Expression must be of type int or boolean */
+  if (typesStack.top() != INT_CODE && typesStack.top() != BOOL_CODE) {
+    printf("Error at line %d. Expression must be of type int or bool to be negated\n", neg->line_number);
+    exit(TYPE_ERROR);
+  }
 }
 
 void Analyser::visitNot(Not *not_)
 {
-  /* Code For Not Goes Here */
-
   not_->expr_->accept(this);
 
+  /* Expression must be of type boolean */
+  if (typesStack.top() != BOOL_CODE) {
+    printf("Error at line %d. Expression must be of type bool\n", not_->line_number);
+    exit(TYPE_ERROR);
+  }
 }
 
 void Analyser::visitEMul(EMul *e_mul)
 {
-  /* Code For EMul Goes Here */
-
   e_mul->expr_1->accept(this);
   e_mul->mulop_->accept(this);
   e_mul->expr_2->accept(this);
 
   int resultType = typesStack.top();
 
+  /* Check if both expressions have matching types */
   checkTypesMatch(e_mul->mulop_->line_number);
+
+  /* Check if both expressions are of type int */
+  if (resultType != INT_CODE) {
+    printf("Error at line %d. Expressions must be of type int to use multiplication", e_mul->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  /* Both types were popped so push type of multiplication result */
   typesStack.push(resultType);
 }
 
@@ -478,7 +604,16 @@ void Analyser::visitEAdd(EAdd *e_add)
 
   int resultType = typesStack.top();
 
+  /* Check if both expressions have matching types */
   checkTypesMatch(e_add->addop_->line_number);
+
+  /* Check if both expressions are of type int or string */
+  if (resultType != INT_CODE && resultType != STRING_CODE) {
+    printf("Error at line %d. Expressions must be of type int or string to use sum", e_add->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  /* Both types were popped so push type of multiplication result */
   typesStack.push(resultType);
 }
 
@@ -488,107 +623,82 @@ void Analyser::visitERel(ERel *e_rel)
   e_rel->relop_->accept(this);
   e_rel->expr_2->accept(this);
 
+  int resultType = typesStack.top();
+
+  /* Check if both expressions have matching types */
   checkTypesMatch(e_rel->relop_->line_number);
+
+  /* Check if both expressions aren't of type void */
+  if (resultType == VOID_CODE) {
+    printf("Error at line %d. Expressions can't be of type void", e_rel->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  /* Result of ERel will always be boolean */
   typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEAnd(EAnd *e_and)
 {
-  /* Code For EAnd Goes Here */
-
   e_and->expr_1->accept(this);
   e_and->expr_2->accept(this);
 
+  int resultType = typesStack.top();
+
+  /* Check if both expressions have matching types */
+  checkTypesMatch(e_and->line_number);
+
+  /* Check if both expressions are of type bool */
+  if (resultType != BOOL_CODE) {
+    printf("Error at line %d. Expressions must be of type bool", e_and->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  /* Result of EAnd will always be boolean */
   typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEOr(EOr *e_or)
 {
-  /* Code For EOr Goes Here */
-
   e_or->expr_1->accept(this);
   e_or->expr_2->accept(this);
 
+  int resultType = typesStack.top();
+
+  /* Check if both expressions have matching types */
+  checkTypesMatch(e_or->line_number);
+
+  /* Check if both expressions are of type bool */
+  if (resultType != BOOL_CODE) {
+    printf("Error at line %d. Expressions must be of type bool", e_or->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  /* Result of EOr will always be boolean */
   typesStack.push(BOOL_CODE);
 }
 
-void Analyser::visitPlus(Plus *plus)
-{
-  /* Code For Plus Goes Here */
+void Analyser::visitPlus(Plus *plus) {/* Do nothing */}
 
+void Analyser::visitMinus(Minus *minus) {/* Do nothing */}
 
-}
+void Analyser::visitTimes(Times *times) {/* Do nothing */}
 
-void Analyser::visitMinus(Minus *minus)
-{
-  /* Code For Minus Goes Here */
+void Analyser::visitDiv(Div *div) {/* Do nothing */}
 
+void Analyser::visitMod(Mod *mod) {/* Do nothing */}
 
-}
+void Analyser::visitLTH(LTH *lth) {/* Do nothing */}
 
-void Analyser::visitTimes(Times *times)
-{
-  /* Code For Times Goes Here */
+void Analyser::visitLE(LE *le) {/* Do nothing */}
 
+void Analyser::visitGTH(GTH *gth) {/* Do nothing */}
 
-}
+void Analyser::visitGE(GE *ge) {/* Do nothing */}
 
-void Analyser::visitDiv(Div *div)
-{
-  /* Code For Div Goes Here */
+void Analyser::visitEQU(EQU *equ) {/* Do nothing */}
 
-
-}
-
-void Analyser::visitMod(Mod *mod)
-{
-  /* Code For Mod Goes Here */
-
-
-}
-
-void Analyser::visitLTH(LTH *lth)
-{
-  /* Code For LTH Goes Here */
-
-
-}
-
-void Analyser::visitLE(LE *le)
-{
-  /* Code For LE Goes Here */
-
-
-}
-
-void Analyser::visitGTH(GTH *gth)
-{
-  /* Code For GTH Goes Here */
-
-
-}
-
-void Analyser::visitGE(GE *ge)
-{
-  /* Code For GE Goes Here */
-
-
-}
-
-void Analyser::visitEQU(EQU *equ)
-{
-  /* Code For EQU Goes Here */
-
-
-}
-
-void Analyser::visitNE(NE *ne)
-{
-  /* Code For NE Goes Here */
-
-
-}
-
+void Analyser::visitNE(NE *ne) {/* Do nothing */}
 
 void Analyser::visitListTopDef(ListTopDef *list_top_def)
 {
@@ -659,10 +769,4 @@ void Analyser::visitString(String x)
   typesStack.push(STRING_CODE);
 }
 
-void Analyser::visitIdent(Ident x)
-{
-  
-}
-
-
-
+void Analyser::visitIdent(Ident x) {/* Do nothing */}

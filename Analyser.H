@@ -11,17 +11,19 @@
 #define DUPLICATE_FUN_NAME  2
 #define TYPE_ERROR          3
 #define FUNCTION_NOT_FOUND  4
-#define VARIABLE_REDECLARED 5
+#define VAR_REDECLARATION   5
+#define VAR_NOT_DECLARED    6
+#define RETURN_NOT_FOUND    7
 
 /* STACK CODES */
 #define PAUSE_CODE          -1
 #define INT_CODE            1
-#define CHAR_CODE           2
-#define DOUBLE_CODE         3
-#define STRING_CODE         4
-#define IDENT_CODE          5
-#define VOID_CODE           6
-#define BOOL_CODE           7
+#define STRING_CODE         2
+#define VOID_CODE           3
+#define BOOL_CODE           4
+#define DOUBLE_CODE         5
+#define CHAR_CODE           6
+#define IDENT_CODE          7
 
 class Analyser : public Visitor
 {
@@ -107,6 +109,8 @@ private:
   void declareVariable(Ident ident, int lineNumber);
 
   unsigned long currentDepth;
+  int currentReturnType;
+  bool returnFound, lastStmtWasReturn, ifReturn, elseReturn;
   std::unordered_map<Ident, FnDef*> functionsMap;
   std::stack<int> typesStack;
   std::unordered_map<Ident, std::pair<int, unsigned long> > variablesMap;//<Ident, <typeCode, declarationDepth>>
