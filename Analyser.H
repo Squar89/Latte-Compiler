@@ -11,8 +11,10 @@
 #define DUPLICATE_FUN_NAME  2
 #define TYPE_ERROR          3
 #define FUNCTION_NOT_FOUND  4
+#define VARIABLE_REDECLARED 5
 
 /* STACK CODES */
+#define PAUSE_CODE          -1
 #define INT_CODE            1
 #define CHAR_CODE           2
 #define DOUBLE_CODE         3
@@ -20,7 +22,6 @@
 #define IDENT_CODE          5
 #define VOID_CODE           6
 #define BOOL_CODE           7
-#define PAUSE_CODE          -1
 
 class Analyser : public Visitor
 {
@@ -103,11 +104,14 @@ private:
   bool correctMainExists();
   void checkTypesMatch(int lineNumber);
   void checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<int> &reversedCallTypes);
+  void declareVariable(Ident ident, int lineNumber);
 
+  unsigned long currentDepth;
   std::unordered_map<Ident, FnDef*> functionsMap;
   std::stack<int> typesStack;
-  std::unordered_map<Ident, std::pair<Type*, Expr*> > globalVariables, localVariables, hiddenVariables;
-  //std::unordered_map<Ident, ListType*> functionsCalled;
+  std::unordered_map<Ident, std::pair<int, unsigned long> > variablesMap;//<Ident, <typeCode, declarationDepth>>
+  std::vector<std::vector<std::pair<Ident, std::pair<int, unsigned long> > > > localRedeclVar;//localRedeclVar[2] holds shadowed variables on depth of 2
+  std::vector<std::vector<Ident> > localVar;//localVar[2] holds Idents of variables declared on depth of 2
 };
 
 

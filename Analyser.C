@@ -2,8 +2,6 @@
 #include "Analyser.H"
 #include <iostream>
 
-
-
 void Analyser::visitProgram(Program *t) {} //abstract class
 void Analyser::visitTopDef(TopDef *t) {} //abstract class
 void Analyser::visitArg(Arg *t) {} //abstract class
@@ -40,6 +38,13 @@ bool Analyser::correctMainExists() {
 void Analyser::analyseProgram(Program *p)
 {
   functionsMap.clear();
+  variablesMap.clear();
+  currentDepth = 0;
+  std::vector< std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
+  localRedeclVar.push_back(overshadowedVariables);
+  std::vector<Ident> localVarSetup;
+  localVar.push_back(localVarSetup);
+
   getFunctionsDefinitions((Prog*) p);
 
   visitProg((Prog*) p);
@@ -50,12 +55,11 @@ void Analyser::analyseProgram(Program *p)
     exit(MAIN_NOT_FOUND);
   }
 
-  /* TODO DEBUG later so there is no loose values on stack
+  /*//TODO DEBUG later so there is no loose values on stack
   while (!typesStack.empty()) {
     printf("%d\n", typesStack.top());
     typesStack.pop();
-  }
-  */
+  }*/
 }
 
 //this implementation assumes that function names must be unique.
@@ -112,7 +116,13 @@ void Analyser::checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<i
   }
 
   typesStack.push(PAUSE_CODE);
+
+  /* Clear the variables map so there is no issue with their names or types while visiting FnDef arguments */
+  std::unordered_map<Ident, std::pair<int, unsigned long> > variablesMapCopy(variablesMap);
+  variablesMap.clear();
   it->second->listarg_->accept(this);
+  variablesMap = variablesMapCopy;
+  
   auto temp = reversedCallTypes.end();
   temp--;
   for (auto revIt = temp; revIt != reversedCallTypes.begin(); revIt--) {
@@ -134,28 +144,70 @@ void Analyser::visitProg(Prog *prog)
 
 void Analyser::visitFnDef(FnDef *fn_def)
 {
-
   fn_def->type_->accept(this);
   visitIdent(fn_def->ident_);
+
+  variablesMap.clear();
   fn_def->listarg_->accept(this);
   fn_def->block_->accept(this);
+  variablesMap.clear();
 }
 
 void Analyser::visitAr(Ar *ar)
 {
-  /* Code For Ar Goes Here */
-
   ar->type_->accept(this);
   visitIdent(ar->ident_);
 
+  /* Try to add the argument's ident and type to the variablesMap */
+  if (variablesMap.find(ar->ident_) != variablesMap.end()) {
+    printf("Error at line %d: variable %s was declared earlier\n", ar->line_number, ar->ident_.c_str());
+    exit(VARIABLE_REDECLARED);
+  }
+
+  /* These are the function's arguments so we insert them with the depth of a first block of this function */
+  variablesMap.insert(std::make_pair(ar->ident_, std::make_pair(typesStack.top(), currentDepth + 1)));//TODO no problems with not popping stack here?
 }
 
 void Analyser::visitBlk(Blk *blk)
 {
-  /* Code For Blk Goes Here */
+  currentDepth++;
+  /* Prepare overshadowed variables vector for this block */
+  if (localRedeclVar.size() != currentDepth) {
+    printf("Unexpected error occurred at line %d (Wrong localRedeclVar size)\n", blk->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+  std::vector< std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
+  localRedeclVar.push_back(overshadowedVariables);
+
+  /* Prepare local variables vector for this block */
+  if (localVar.size() != currentDepth) {
+    printf("Unexpected error occurred at line %d (Wrong localVar size)\n", blk->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+  std::vector<Ident> localVarSetup;
+  localVar.push_back(localVarSetup);
 
   blk->liststmt_->accept(this);
 
+  /* Remove all variables declared in this block */
+  while (!localVar[currentDepth].empty()) {
+    variablesMap.erase(localVar[currentDepth].back());
+    localVar[currentDepth].pop_back();
+  }
+  localVar.pop_back();
+
+  /* Restore overshadowed variables */
+  while (!localRedeclVar[currentDepth].empty()) {
+    Ident ident = localRedeclVar[currentDepth].back().first;
+    int typeCode = localRedeclVar[currentDepth].back().second.first;
+    int declDepth = localRedeclVar[currentDepth].back().second.second;
+
+    variablesMap.insert(std::make_pair(ident, std::make_pair(typeCode, declDepth)));
+    localRedeclVar[currentDepth].pop_back();
+  }
+  localRedeclVar.pop_back();
+
+  currentDepth--;
 }
 
 void Analyser::visitEmpty(Empty *empty)
@@ -175,11 +227,14 @@ void Analyser::visitBStmt(BStmt *b_stmt)
 
 void Analyser::visitDecl(Decl *decl)
 {
-  /* Code For Decl Goes Here */
-
+  /* This visit should leave declaration type on the stack */
   decl->type_->accept(this);
+
+  /* Visit each item (Ident OR Ident = Expr) and add them to the declared variables */
   decl->listitem_->accept(this);
 
+  /* Remove declaration type from the stack */
+  typesStack.pop();
 }
 
 void Analyser::visitAss(Ass *ass)
@@ -258,35 +313,64 @@ void Analyser::visitSExp(SExp *s_exp)
 
 }
 
+void Analyser::declareVariable(Ident ident, int lineNumber) {
+  /* Check if this variable wasn't declared before at this depth */
+  if (auto it = variablesMap.find(ident); it != variablesMap.end()) {
+    /* Check if this variable was declared in the current block */
+    if (it->second.second == currentDepth) {
+      printf("Error at line %d: variable %s was declared earlier\n", lineNumber, ident.c_str());
+      exit(VARIABLE_REDECLARED);
+    }
+    /* Else add variable to the overshadowed vector and remove it from variablesMap */
+    else {
+      int typeCode = it->second.first;
+      int declDepth = it->second.second;
+
+      localRedeclVar[currentDepth].push_back(std::make_pair(ident, std::make_pair(typeCode, declDepth)));
+      variablesMap.erase(ident);
+    }
+  }
+
+  /* Insert pair <VariableIdent, <TypeCode, declarationDepth> >. This variable's type is on top of the stack (from visitDecl) */
+  variablesMap.insert(std::make_pair(ident, std::make_pair(typesStack.top(), currentDepth)));
+
+  /* Insert this ident to locally declared variables vector */
+  localVar[currentDepth].push_back(ident);
+}
+
 void Analyser::visitNoInit(NoInit *no_init)
 {
-  /* Code For NoInit Goes Here */
-
   visitIdent(no_init->ident_);
-
+  declareVariable(no_init->ident_, no_init->line_number);
 }
 
 void Analyser::visitInit(Init *init)
 {
-  /* Code For Init Goes Here */
-
   visitIdent(init->ident_);
+  declareVariable(init->ident_, init->line_number);
+
   init->expr_->accept(this);
 
+  /* Save expression type and restore declaration type as top of stack */
+  int exprType = typesStack.top();
+  typesStack.pop();
+
+  /* Check if types of declaration and assignment match */
+  if (typesStack.top() != exprType) {
+    printf("Error at line %d: declaration and assignment types do not match\n", init->line_number);
+    printf("Declaration type: %d, assignment type: %d\n", typesStack.top(), exprType);
+    exit(TYPE_ERROR);
+  }
 }
 
 void Analyser::visitInt(Int *int_)
 {
-  /* Code For Int Goes Here */
-
-
+  typesStack.push(INT_CODE);
 }
 
 void Analyser::visitStr(Str *str)
 {
-  /* Code For Str Goes Here */
   typesStack.push(STRING_CODE);
-
 }
 
 void Analyser::visitBool(Bool *bool_)
@@ -335,8 +419,6 @@ void Analyser::visitELitFalse(ELitFalse *e_lit_false)
 
 void Analyser::visitEApp(EApp *e_app)
 {
-  /* Code For EApp Goes Here */
-
   typesStack.push(PAUSE_CODE);
   visitIdent(e_app->ident_);
   e_app->listexpr_->accept(this);

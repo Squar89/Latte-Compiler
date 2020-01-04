@@ -6,7 +6,17 @@ void error() {}
 int readInt() {}
 string readString() {}
 
+int hello(int something) {
+  return 0;
+}
+
 int main () {
   printString("hello world") ;
+
+  int x = 1;
+  int y;
+  int z = 2;
+  int a, b, c = 2;
+
   return 0 ;
 }
