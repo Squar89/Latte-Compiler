@@ -67,12 +67,14 @@ void Analyser::analyseProgram(Program *p)
   }
 
   //TODO DEBUG
+  /*
   printf("Printing loose values left on stack:\n");
   while (!typesStack.empty()) {
     printf("%d\n", typesStack.top());
     typesStack.pop();
   }
   printf("Printing done.\n");
+  */
   //END DEBUG
 }
 
