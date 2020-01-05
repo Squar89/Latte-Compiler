@@ -110,7 +110,7 @@ private:
 
   unsigned long currentDepth;
   int currentReturnType;
-  bool returnFound, lastStmtWasReturn, ifReturn, elseReturn;
+  bool returnFound, lastStmtWasReturn, ifFullReturn;
   std::unordered_map<Ident, FnDef*> functionsMap;
   std::stack<int> typesStack;
   std::unordered_map<Ident, std::pair<int, unsigned long> > variablesMap;//<Ident, <typeCode, declarationDepth>>
