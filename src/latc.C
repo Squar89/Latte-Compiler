@@ -6,29 +6,23 @@
 /****************************************************************************/
 #include <stdio.h>
 #include <string.h>
-#include <string>
-#include <iostream>
 #include "Parser.H"
 #include "Printer.H"
 #include "Absyn.H"
-#include "Analyser.H"
-#include "Compiler.H"
 
 void usage() {
   printf("usage: Call with one of the following argument combinations:\n");
   printf("\t--help\t\tDisplay this help message.\n");
-  printf("\t(no arguments)	Parse stdin verbosely.\n");
+  printf("\t(no arguments)  Parse stdin verbosely.\n");
   printf("\t(files)\t\tParse content of files verbosely.\n");
   printf("\t-s (files)\tSilent mode. Parse content of files silently.\n");
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv)
+{
   FILE *input;
-  Analyser *analyser;
-  Compiler *compiler;
   int quiet = 0;
   char *filename = NULL;
-  std::string output;
 
   if (argc > 1) {
     if (strcmp(argv[1], "-s") == 0) {
@@ -52,17 +46,9 @@ int main(int argc, char ** argv) {
   } else input = stdin;
   /* The default entry point is used. For other options see Parser.H */
   Program *parse_tree = pProgram(input);
-  if (parse_tree) {
-    analyser = new Analyser();
-    analyser->analyseProgram(parse_tree);
-    //printf("\nCode check succesful!\n\n");
-
-    compiler = new Compiler();
-    //printf("\n\nCompiler result:\n");
-    std::cout << compiler->compile(parse_tree);
-
-    //printf("\nParse Succesful!\n");
-    quiet = true;
+  if (parse_tree)
+  {
+    printf("\nParse Succesful!\n");
     if (!quiet) {
       printf("\n[Abstract Syntax]\n");
       ShowAbsyn *s = new ShowAbsyn();

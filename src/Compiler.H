@@ -1,13 +1,17 @@
-#ifndef SKELETON_HEADER
-#define SKELETON_HEADER
-/* You might want to change the above name. */
+#ifndef COMPILER_HEADER
+#define COMPILER_HEADER
 
+#include <unordered_map>
 #include "Absyn.H"
 
+#define BUFFER_INITIAL 2000
 
-class Skeleton : public Visitor
+class Compiler : public Visitor
 {
 public:
+  char* compile(Program *p);
+
+protected:
   void visitProgram(Program *p);
   void visitTopDef(TopDef *p);
   void visitArg(Arg *p);
@@ -72,14 +76,88 @@ public:
   void visitListItem(ListItem *p);
   void visitListType(ListType *p);
   void visitListExpr(ListExpr *p);
-
   void visitInteger(Integer x);
   void visitChar(Char x);
   void visitDouble(Double x);
   void visitString(String x);
   void visitIdent(Ident x);
 
+private:
+  void declareVariable(Ident ident);
+
+  char *buf_;
+  int cur_, buf_size;
+  unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter;
+  std::unordered_map<Ident, unsigned int> variablesMap;//<Ident, variableCount>
+
+  std::string header = ".globl _main\n";
+  std::string footer = "\n";
+
+  /* Functions related to buffer storing result */
+  void inline bufAppend(const char *s)
+  {
+    int len = strlen(s);
+    if (cur_ + len >= buf_size) {
+      while (cur_ + len >= buf_size)
+      {
+        buf_size *= 2; /* Double the buffer size */
+      }
+      resizeBuffer();
+    }
+    for(int n = 0; n < len; n++)
+    {
+      buf_[cur_ + n] = s[n];
+    }
+    cur_ += len;
+    buf_[cur_] = 0;
+  }
+
+  void inline bufAppend(const char c)
+  {
+    if (cur_ >= buf_size)
+    {
+      buf_size *= 2; /* Double the buffer size */
+      resizeBuffer();
+    }
+    buf_[cur_] = c;
+    cur_++;
+    buf_[cur_] = 0;
+  }
+
+  void inline bufAppend(String str)
+  {
+    const char *s = str.c_str();
+    bufAppend(s);
+  }
+
+  void inline bufReset(void)
+  {
+    if (buf_) free(buf_);
+    buf_size = BUFFER_INITIAL;
+    buf_ = (char *) malloc(buf_size);
+    if (!buf_) {
+      fprintf(stderr, "ERROR\nOut of memory while allocating buffer!\n");
+      exit(1);
+    }
+    memset(buf_, 0, buf_size);
+    cur_ = 0;
+  }
+
+  void inline resizeBuffer(void)
+  {
+    char *temp = (char *) malloc(buf_size);
+    if (!temp)
+    {
+      fprintf(stderr, "ERROR\nOut of memory while attempting to grow buffer!\n");
+      exit(1);
+    }
+    if (buf_)
+    {
+      strcpy(temp, buf_);
+      free(buf_);
+    }
+    buf_ = temp;
+  }
 };
 
-
-#endif
+#endif /* COMPILER_HEADER */

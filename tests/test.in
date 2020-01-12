@@ -1,33 +1,9 @@
-// Hello world 
-
-void printInt(int x) {
-  return;
-}
-void printString(string x) {
-  return;
-}
-void error() {
-  return;
-}
-int readInt() {
-  return 0;
-}
-string readString() {
-  return "";
-}
-
-int hello(int something) {
-  return 0;
-}
-
 int main () {
-  printString("hello world") ;
+  int a = 5;
 
-  int x = 1;
-  int y;
-  int z = 2;
-  boolean test;
-  y = 2;
-
-  return 0;
+  while (a < 155) {
+    a++;
+  }
+  
+  return a;
 }
