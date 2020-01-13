@@ -21,6 +21,7 @@ char* Compiler::compile(Program *p) {
   condCounter = 0;
   whileCounter = 0;
   stackCounter = 0;
+  argCounter = 0;
   bufAppend(header);
 
   p->accept(this);
@@ -45,40 +46,52 @@ void Compiler::visitFnDef(FnDef *fn_def)
   /* funtion prologue */
   bufAppend("push %rbp\n");
   bufAppend("movq %rsp, %rbp\n\n");
-  //TODO do I need to reserve space for local variables here?
 
+  /* insert arguments and their offsets into variablesMap */
+  argCounter = 0;
   fn_def->listarg_->accept(this);
+  argCounter = 0;
+
+  /* visit function's block */
   fn_def->block_->accept(this);
 
   /* function epilogue */
   bufAppend("\nmovq %rbp, %rsp\n");
   bufAppend("pop %rbp\n");
-  bufAppend("ret\n");
+  bufAppend("ret\n\n");
+
+  /* clear arguments from variablesMap */
+  variablesMap.clear();
 }
 
 void Compiler::visitAr(Ar *ar)
 {
-  /* Code For Ar Goes Here */
-
   ar->type_->accept(this);
   visitIdent(ar->ident_);
 
+  argCounter++;
+  variablesMap.insert(std::make_pair(ar->ident_, 8 + (argCounter * 8)));
 }
 
 void Compiler::visitBlk(Blk *blk)
 {
-  /* Code For Blk Goes Here */
+  std::unordered_map<Ident, long long> variablesMapCopy(variablesMap);
+  unsigned int stackCounterBeforeBlk = stackCounter;
 
   blk->liststmt_->accept(this);
 
+  variablesMap = variablesMapCopy;
+  /* Deallocate local variables from previous block and restore stackCounter */
+  if (stackCounter - stackCounterBeforeBlk > 0) {
+    int bytesToDeallocate = 8 * (stackCounter - stackCounterBeforeBlk);
+    bufAppend("addq $");
+    bufAppend(std::to_string(bytesToDeallocate));
+    bufAppend(", %rsp\n");
+    stackCounter = stackCounterBeforeBlk;
+  }
 }
 
-void Compiler::visitEmpty(Empty *empty)
-{
-  /* Code For Empty Goes Here */
-
-
-}
+void Compiler::visitEmpty(Empty *empty) { /* Do nothing */ }
 
 void Compiler::visitBStmt(BStmt *b_stmt)
 {
@@ -100,7 +113,6 @@ void Compiler::visitAss(Ass *ass)
   ass->expr_->accept(this);
 
   int offset = variablesMap.find(ass->ident_)->second;
-  offset *= -8;
   bufAppend("movq %rax, ");
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp)\n");
@@ -111,7 +123,6 @@ void Compiler::visitIncr(Incr *incr)
   visitIdent(incr->ident_);
 
   int offset = variablesMap.find(incr->ident_)->second;
-  offset *= -8;
   bufAppend("incq ");
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp)\n");
@@ -122,7 +133,6 @@ void Compiler::visitDecr(Decr *decr)
   visitIdent(decr->ident_);
 
   int offset = variablesMap.find(decr->ident_)->second;
-  offset *= -8;
   bufAppend("decq ");
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp)\n");
@@ -142,12 +152,12 @@ void Compiler::visitCond(Cond *cond)
 
   cond->expr_->accept(this);
   bufAppend("cmpq $0, %rax\n");
-  bufAppend("je _afterCondLabel");
+  bufAppend("je afterCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend("\n");
   cond->stmt_->accept(this);
 
-  bufAppend("_afterCondLabel");
+  bufAppend("afterCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend(":\n");
 }
@@ -159,20 +169,20 @@ void Compiler::visitCondElse(CondElse *cond_else)
 
   cond_else->expr_->accept(this);
   bufAppend("cmpq $0, %rax\n");
-  bufAppend("je _elseCondLabel");
+  bufAppend("je elseCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend("\n");
   cond_else->stmt_1->accept(this);
-  bufAppend("jmp _afterCondLabel");
+  bufAppend("jmp afterCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend("\n");
 
-  bufAppend("_elseCondLabel");
+  bufAppend("elseCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend(":\n");
   cond_else->stmt_2->accept(this);
 
-  bufAppend("_afterCondLabel");
+  bufAppend("afterCondLabel");
   bufAppend(std::to_string(currentCondCounter));
   bufAppend(":\n");
 }
@@ -181,37 +191,41 @@ void Compiler::visitWhile(While *while_)
 {
   int currentWhileCounter = whileCounter;
 
-  bufAppend("jmp _whileCondLabel");
+  bufAppend("jmp whileCondLabel");
   bufAppend(std::to_string(currentWhileCounter));
   bufAppend("\n");
-  bufAppend("_whileStmtLabel");
+  bufAppend("whileStmtLabel");
   bufAppend(std::to_string(currentWhileCounter));
   bufAppend(":\n");
   while_->stmt_->accept(this);
 
-  bufAppend("_whileCondLabel");
+  bufAppend("whileCondLabel");
   bufAppend(std::to_string(currentWhileCounter));
   bufAppend(":\n");
   while_->expr_->accept(this);
   bufAppend("cmpq $0, %rax\n");
-  bufAppend("jne _whileStmtLabel");
+  bufAppend("jne whileStmtLabel");
   bufAppend(std::to_string(currentWhileCounter));
   bufAppend("\n");
 }
 
 void Compiler::visitSExp(SExp *s_exp)
 {
-  /* Code For SExp Goes Here */
-
   s_exp->expr_->accept(this);
-
 }
 
 void Compiler::declareVariable(Ident ident) {
   stackCounter++;
 
-  //TODO add suport for overshadowing variables
-  variablesMap.insert(std::make_pair(ident, stackCounter));
+  /* Check if this declaration overshadows variable from higher block */
+  if (auto it = variablesMap.find(ident); it != variablesMap.end()) {
+    /* The overshadowed variable offset will be recovered later on, when leaving the block */
+    it->second = stackCounter;
+  }
+  /* Otherwise just declare the variable */
+  else {
+    variablesMap.insert(std::make_pair(ident, stackCounter * -8));
+  }
   bufAppend("pushq %rax\n");
 }
 
@@ -260,11 +274,8 @@ void Compiler::visitVoid(Void *void_)
 
 void Compiler::visitFun(Fun *fun)
 {
-  /* Code For Fun Goes Here */
-
   fun->type_->accept(this);
   fun->listtype_->accept(this);
-
 }
 
 void Compiler::visitEVar(EVar *e_var)
@@ -272,7 +283,6 @@ void Compiler::visitEVar(EVar *e_var)
   visitIdent(e_var->ident_);
 
   int offset = variablesMap.find(e_var->ident_)->second;
-  offset *= -8;
   bufAppend("movq ");
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp), %rax\n");
@@ -283,17 +293,51 @@ void Compiler::visitELitInt(ELitInt *e_lit_int)
   visitInteger(e_lit_int->integer_);
 }
 
-void Compiler::visitELitTrue(ELitTrue *e_lit_true) { /* Do nothing */ }
+void Compiler::visitELitTrue(ELitTrue *e_lit_true) {
+  bufAppend("movq $1, %rax\n");
+}
 
-void Compiler::visitELitFalse(ELitFalse *e_lit_false) { /* Do nothing */ }
+void Compiler::visitELitFalse(ELitFalse *e_lit_false) {
+  bufAppend("movq $0, %rax\n");
+}
 
 void Compiler::visitEApp(EApp *e_app)
 {
-  /* Code For EApp Goes Here */
-
   visitIdent(e_app->ident_);
-  e_app->listexpr_->accept(this);
 
+  /* Align stack to 16 */
+  argCounter = 0;
+  countArgs(e_app->listexpr_);//this function won't execute these expressions, it will just count them
+  bufAppend("movq %rsp, %rax\n");
+  bufAppend("subq $");
+  bufAppend(std::to_string(8 * (argCounter + 1)));//number of args + return address size
+  bufAppend(", %rax\n");
+  bufAppend("xorq %rdx, %rdx\n");
+  bufAppend("movq $20, %rcx\n");
+  bufAppend("idivq %rcx\n");
+  bufAppend("subq %rdx, %rsp\n");//pad RSP
+  bufAppend("pushq %rdx\n");//push padding onto stack
+
+  /* Push args onto the stack */
+  pushArgsOntoStack(e_app->listexpr_);
+
+  /* Append function call */
+  bufAppend("call _");
+  bufAppend(e_app->ident_);
+  bufAppend("\n");
+
+  /* Remove args from stack */
+  if (argCounter > 0) {
+    int bytesToRemove = 8 * argCounter;
+    bufAppend("addq $");
+    bufAppend(std::to_string(bytesToRemove));
+    bufAppend(", %rsp\n");
+    argCounter = 0;
+  }
+
+  /* Remove padding */
+  bufAppend("popq %rdx\n");
+  bufAppend("addq %rdx, %rsp\n");
 }
 
 void Compiler::visitEString(EString *e_string)
@@ -354,13 +398,13 @@ void Compiler::visitERel(ERel *e_rel)
 void Compiler::visitEAnd(EAnd *e_and)
 {
   e_and->expr_1->accept(this);
-  bufAppend("cmpq $0, $rax\n");
-  bufAppend("je _andOrLabelSkip");
+  bufAppend("cmpq $0, %rax\n");
+  bufAppend("je andOrLabelSkip");
   bufAppend(std::to_string(andOrLabelCounter));
   bufAppend("\n");
   e_and->expr_2->accept(this);
 
-  bufAppend("_andOrLabelSkip");
+  bufAppend("andOrLabelSkip");
   bufAppend(std::to_string(andOrLabelCounter));
   bufAppend(":\n");
 
@@ -371,12 +415,12 @@ void Compiler::visitEOr(EOr *e_or)
 {
   e_or->expr_1->accept(this);
   bufAppend("cmpq $0, %rax\n");
-  bufAppend("jne _andOrLabelSkip");
+  bufAppend("jne andOrLabelSkip");
   bufAppend(std::to_string(andOrLabelCounter));
   bufAppend("\n");
   e_or->expr_2->accept(this);
 
-  bufAppend("_andOrLabelSkip");
+  bufAppend("andOrLabelSkip");
   bufAppend(std::to_string(andOrLabelCounter));
   bufAppend(":\n");
 
@@ -493,6 +537,22 @@ void Compiler::visitListExpr(ListExpr *list_expr)
   }
 }
 
+void Compiler::countArgs(ListExpr *list_expr)
+{
+  for (ListExpr::iterator i = list_expr->begin() ; i != list_expr->end() ; ++i)
+  {
+    argCounter++;
+  }
+}
+
+void Compiler::pushArgsOntoStack(ListExpr *list_expr)
+{
+  for (ListExpr::reverse_iterator i = list_expr->rbegin() ; i != list_expr->rend() ; ++i)
+  {
+    (*i)->accept(this);
+    bufAppend("pushq %rax\n");
+  }
+}
 
 void Compiler::visitInteger(Integer x)
 {

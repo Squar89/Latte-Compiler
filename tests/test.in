@@ -1,9 +1,15 @@
 int main () {
-  int a = 5;
+  int a = 2;
+  boolean t = true;
 
-  while (a < 155) {
-    a++;
+  return foo(a * a, false || true);
+}
+
+int foo(int x, boolean test) {
+  if (test) {
+    return x * x;
   }
-  
-  return a;
+  else {
+    return x * x * x;
+  }
 }

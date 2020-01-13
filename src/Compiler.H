@@ -84,11 +84,13 @@ protected:
 
 private:
   void declareVariable(Ident ident);
+  void pushArgsOntoStack(ListExpr *p);
+  void countArgs(ListExpr *p);
 
   char *buf_;
   int cur_, buf_size;
-  unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter;
-  std::unordered_map<Ident, unsigned int> variablesMap;//<Ident, variableCount>
+  unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter;
+  std::unordered_map<Ident, long long> variablesMap;//<Ident, offset from RBP>
 
   std::string header = ".globl _main\n";
   std::string footer = "\n";
