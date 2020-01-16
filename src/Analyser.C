@@ -42,7 +42,7 @@ bool Analyser::correctMainExists() {
 }
 
 /* Entry point, start of the frontend to the compiler */
-void Analyser::analyseProgram(Program *p)
+void Analyser::analyseProgram(Program *p, Program *lib)
 {
   //std::cout << "analyseProgram\n";
   /* Prepare all used variables and structures */
@@ -54,28 +54,18 @@ void Analyser::analyseProgram(Program *p)
   std::vector<Ident> localVarSetup;
   localVar.push_back(localVarSetup);
 
-  /* Setup functionsMap with all functions definitions present in the input */
+  /* Setup functionsMap with all functions definitions present in the input and those predefined */
+  getFunctionsDefinitions((Prog*) lib);
   getFunctionsDefinitions((Prog*) p);
 
   /* Analyse input */
-  visitProg((Prog*) p);
+  p->accept(this);
 
   /* Check if proper main function was declared */
   if (!correctMainExists()) {
     fprintf(stderr, "ERROR\nMain not found. Main function must be of int type and take no arguments.\n");
     exit(MAIN_NOT_FOUND);
   }
-
-  //TODO DEBUG
-  /*
-  printf("Printing loose values left on stack:\n");
-  while (!typesStack.empty()) {
-    printf("%d\n", typesStack.top());
-    typesStack.pop();
-  }
-  printf("Printing done.\n");
-  */
-  //END DEBUG
 }
 
 /* This function puts all the function definitions present in the input to the functionsMap structure.
@@ -551,8 +541,6 @@ void Analyser::visitInit(Init *init)
 {
   //std::cout << "Init\n";
   visitIdent(init->ident_);
-  declareVariable(init->ident_, init->line_number);
-
   init->expr_->accept(this);
 
   /* Save expression type and restore declaration type as top of stack */
@@ -565,6 +553,8 @@ void Analyser::visitInit(Init *init)
     //fprintf(stderr, "Declaration type: %d, assignment type: %d.\n", typesStack.top(), exprType);
     exit(TYPE_ERROR);
   }
+
+  declareVariable(init->ident_, init->line_number);
 }
 
 void Analyser::visitInt(Int *int_)
@@ -744,9 +734,9 @@ void Analyser::visitERel(ERel *e_rel)
   /* Check if both expressions have matching types */
   checkTypesMatch(e_rel->relop_->line_number);
 
-  /* Check if both expressions aren't of type void */
-  if (resultType == VOID_CODE) {
-    fprintf(stderr, "ERROR\nLine %d. Expressions can't be of type void.", e_rel->line_number);
+  /* Check if both expressions aren't of type void or string*/
+  if (resultType == VOID_CODE || resultType == STRING_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Expressions can't be of type void or string.", e_rel->line_number);
     exit(TYPE_ERROR);
   }
 
@@ -798,7 +788,13 @@ void Analyser::visitEOr(EOr *e_or)
 
 void Analyser::visitPlus(Plus *plus) {/* Do nothing */}
 
-void Analyser::visitMinus(Minus *minus) {/* Do nothing */}
+void Analyser::visitMinus(Minus *minus)
+{
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Expressions must be of type int use Minus.", minus->line_number);
+    exit(TYPE_ERROR);
+  }
+}
 
 void Analyser::visitTimes(Times *times) {/* Do nothing */}
 

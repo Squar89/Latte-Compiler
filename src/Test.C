@@ -23,10 +23,10 @@ void usage() {
 }
 
 int main(int argc, char ** argv) {
-  FILE *input;
+  FILE *input, *libFun;
   Analyser *analyser;
   Compiler *compiler;
-  int quiet = 0;
+  int quiet = 1;
   char *filename = NULL;
   std::string output;
 
@@ -50,19 +50,26 @@ int main(int argc, char ** argv) {
       exit(1);
     }
   } else input = stdin;
-  /* The default entry point is used. For other options see Parser.H */
+
+  /* Parse lib functions */
+  libFun = fopen("lib/predefinedFunctions.txt", "r");
+  if (!libFun) {
+    printf("ERROR\nCouldn't find file \'lib/predefinedFunctions.txt\'\n");
+    exit(1);
+  }
+  Program *parsed_lib = pProgram(libFun);
+
   Program *parse_tree = pProgram(input);
   if (parse_tree) {
     analyser = new Analyser();
-    analyser->analyseProgram(parse_tree);
+    analyser->analyseProgram(parse_tree, parsed_lib);
     //printf("\nCode check succesful!\n\n");
-
+    
     compiler = new Compiler();
     //printf("\n\nCompiler result:\n");
-    std::cout << compiler->compile(parse_tree);
-
+    std::cout << compiler->compile(parse_tree, parsed_lib);
+    
     //printf("\nParse Succesful!\n");
-    quiet = true;
     if (!quiet) {
       printf("\n[Abstract Syntax]\n");
       ShowAbsyn *s = new ShowAbsyn();

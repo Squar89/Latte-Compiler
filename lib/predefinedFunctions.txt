@@ -1,0 +1,5 @@
+void printInt(int x) {}
+void printString(string x) {}
+void error() {}
+int readInt() {}
+string readString() {}

@@ -18,9 +18,6 @@ all: TestLatte
 clean:
 	rm -f *.o TestLatte asm_result out.s
 
-distclean: clean
-	rm -f Absyn.C Absyn.H Test.C Parser.C Parser.H Lexer.C Skeleton.C Skeleton.H Printer.C Printer.H Makefile Latte.l Latte.y Latte.tex Analyser.C Analyser.H
-
 TestLatte: ${OBJS} Test.o
 	@echo "Linking TestLatte..."
 	${CC} ${CCFLAGS} ${OBJS} Test.o -o TestLatte
@@ -43,10 +40,10 @@ Parser.o: ${SRC_DIR}/Parser.C ${SRC_DIR}/Absyn.H
 Printer.o: ${SRC_DIR}/Printer.C ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Printer.C
 
-Compiler.o: ${SRC_DIR}/Compiler.C ${SRC_DIR}/Compiler.H ${SRC_DIR}/Absyn.H
+Compiler.o: ${SRC_DIR}/Compiler.C ${SRC_DIR}/Compiler.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Codes.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Compiler.C
 
-Analyser.o: ${SRC_DIR}/Analyser.C ${SRC_DIR}/Analyser.H ${SRC_DIR}/Absyn.H
+Analyser.o: ${SRC_DIR}/Analyser.C ${SRC_DIR}/Analyser.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Codes.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Analyser.C
 
 Test.o: ${SRC_DIR}/Test.C ${SRC_DIR}/Parser.H ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Analyser.H ${SRC_DIR}/Compiler.H

@@ -1,15 +1,17 @@
 #ifndef COMPILER_HEADER
 #define COMPILER_HEADER
 
+#include <stack>
 #include <unordered_map>
 #include "Absyn.H"
+#include "Codes.H"
 
 #define BUFFER_INITIAL 2000
 
 class Compiler : public Visitor
 {
 public:
-  char* compile(Program *p);
+  char* compile(Program *p, Program *lib);
 
 protected:
   void visitProgram(Program *p);
@@ -83,14 +85,17 @@ protected:
   void visitIdent(Ident x);
 
 private:
+  void getFunctionsTypes(Prog *p);
   void declareVariable(Ident ident);
   void pushArgsOntoStack(ListExpr *p);
   void countArgs(ListExpr *p);
 
   char *buf_;
   int cur_, buf_size;
-  unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter;
+  unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter, stringConcatLabelCounter;
+  std::stack<int> typesStack;
   std::unordered_map<Ident, long long> variablesMap;//<Ident, offset from RBP>
+  std::unordered_map<Ident, int> typesMap;//<Ident, type>
 
   std::string header = ".globl _main\n";
   std::string footer = "\n";
