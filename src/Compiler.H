@@ -93,6 +93,8 @@ private:
   char *buf_;
   int cur_, buf_size;
   unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter, stringConcatLabelCounter;
+  unsigned int functionLabelCounter, stackCounterBeforeFn;
+  bool functionBlock;
   std::stack<int> typesStack;
   std::unordered_map<Ident, long long> variablesMap;//<Ident, offset from RBP>
   std::unordered_map<Ident, int> typesMap;//<Ident, type>

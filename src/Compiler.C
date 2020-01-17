@@ -24,7 +24,9 @@ char* Compiler::compile(Program *p, Program *lib) {
   whileCounter = 0;
   stackCounter = 0;
   argCounter = 0;
+  functionLabelCounter = 0;
   stringConcatLabelCounter = 0;
+  functionBlock = false;
   bufAppend(header);
 
   getFunctionsTypes((Prog*) lib);
@@ -62,6 +64,9 @@ void Compiler::visitProg(Prog *prog)
 void Compiler::visitFnDef(FnDef *fn_def)
 {
   //std::cout << "visitFnDef" << std::endl;
+  functionLabelCounter++;
+  stackCounterBeforeFn = stackCounter;
+
   fn_def->type_->accept(this);
   typesStack.pop();
   visitIdent(fn_def->ident_);
@@ -79,10 +84,16 @@ void Compiler::visitFnDef(FnDef *fn_def)
   argCounter = 0;
 
   /* visit function's block */
+  functionBlock = true;
   fn_def->block_->accept(this);
 
+  /* Create exitFnCounter label that all returns jump to and free resources before returning */
+  bufAppend("\nexit");
+  bufAppend(std::to_string(functionLabelCounter));
+  bufAppend(":\n");
+
   /* function epilogue */
-  bufAppend("\nmovq %rbp, %rsp\n");
+  bufAppend("movq %rbp, %rsp\n");
   bufAppend("pop %rbp\n");
   bufAppend("ret\n\n");
 
@@ -110,19 +121,22 @@ void Compiler::visitBlk(Blk *blk)
   std::unordered_map<Ident, long long> variablesMapCopy(variablesMap);
   std::unordered_map<Ident, int> typesMapCopy(typesMap);
   unsigned int stackCounterBeforeBlk = stackCounter;
+  bool isFunctionBlock = functionBlock;
+  functionBlock = false;
 
   blk->liststmt_->accept(this);
 
   variablesMap = variablesMapCopy;
   typesMap = typesMapCopy;
+
   /* Deallocate local variables from previous block and restore stackCounter */
-  if (stackCounter - stackCounterBeforeBlk > 0) {
+  if (!isFunctionBlock && stackCounter - stackCounterBeforeBlk > 0) {
     int bytesToDeallocate = 8 * (stackCounter - stackCounterBeforeBlk);
     bufAppend("addq $");
     bufAppend(std::to_string(bytesToDeallocate));
     bufAppend(", %rsp\n");
-    stackCounter = stackCounterBeforeBlk;
   }
+  stackCounter = stackCounterBeforeBlk;
   //std::cout << "Exiting visitBlk" << std::endl;
 }
 
@@ -183,28 +197,43 @@ void Compiler::visitDecr(Decr *decr)
   //std::cout << "Exiting visitDecr" << std::endl;
 }
 
-/* TODO Resolve duplicated returns */
 void Compiler::visitRet(Ret *ret)
 {
   //std::cout << "visitRet" << std::endl;
   ret->expr_->accept(this);
   typesStack.pop();
 
-  /* function epilogue */
-  bufAppend("\nmovq %rbp, %rsp\n");
-  bufAppend("pop %rbp\n");
-  bufAppend("ret\n\n");
+  /* Deallocate variables allocated in this function up to this return */
+  if (stackCounter - stackCounterBeforeFn > 0) {
+    int bytesToDeallocate = 8 * (stackCounter - stackCounterBeforeFn);
+    bufAppend("addq $");
+    bufAppend(std::to_string(bytesToDeallocate));
+    bufAppend(", %rsp\n");
+  }
+
+  /* jump to current function's exit */
+  bufAppend("jmp exit");
+  bufAppend(std::to_string(functionLabelCounter));
+  bufAppend("\n");
   //std::cout << "Exiting visitRet" << std::endl;
 }
 
 void Compiler::visitVRet(VRet *v_ret)
 {
   //std::cout << "visitVRet\n";
-  /* Do nothing */
-  /* function epilogue */
-  bufAppend("\nmovq %rbp, %rsp\n");
-  bufAppend("pop %rbp\n");
-  bufAppend("ret\n\n");
+
+  /* Deallocate variables allocated in this function up to this return */
+  if (stackCounter - stackCounterBeforeFn > 0) {
+    int bytesToDeallocate = 8 * (stackCounter - stackCounterBeforeFn);
+    bufAppend("addq $");
+    bufAppend(std::to_string(bytesToDeallocate));
+    bufAppend(", %rsp\n");
+  }
+
+  /* jump to current function's exit */
+  bufAppend("jmp exit");
+  bufAppend(std::to_string(functionLabelCounter));
+  bufAppend("\n");
   //std::cout << "Exiting visitVRet" << std::endl;
 }
 
