@@ -3,6 +3,7 @@
 
 #include <stack>
 #include <unordered_map>
+#include <unordered_set>
 #include "Absyn.H"
 #include "Codes.H"
 
@@ -89,11 +90,14 @@ private:
   void declareVariable(Ident ident);
   void pushArgsOntoStack(ListExpr *p);
   void countArgs(ListExpr *p);
+  void performDiv();
+  void alignStack(int numberOfArgs);
+  void removePadding();
 
   char *buf_;
   int cur_, buf_size;
   unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter, stringConcatLabelCounter;
-  unsigned int functionLabelCounter, stackCounterBeforeFn;
+  unsigned int functionLabelCounter, stackCounterBeforeFn, divisionCounter;
   bool functionBlock;
   std::stack<int> typesStack;
   std::unordered_map<Ident, long long> variablesMap;//<Ident, offset from RBP>

@@ -115,6 +115,23 @@ void Compiler::visitAr(Ar *ar)
   //std::cout << "Exiting visitAr" << std::endl;
 }
 
+void Compiler::alignStack(int numberOfArgs) {
+  bufAppend("movq %rsp, %rax\n");
+  bufAppend("subq $");
+  bufAppend(std::to_string(8 * (numberOfArgs + 1)));//number of args + padding
+  bufAppend(", %rax\n");
+  bufAppend("xorq %rdx, %rdx\n");
+  bufAppend("movq $16, %rcx\n");
+  bufAppend("idivq %rcx\n");
+  bufAppend("subq %rdx, %rsp\n");//pad RSP
+  bufAppend("pushq %rdx\n");//push padding onto stack
+}
+
+void Compiler::removePadding() {
+  bufAppend("popq %rdx\n");
+  bufAppend("addq %rdx, %rsp\n");
+}
+
 void Compiler::visitBlk(Blk *blk)
 {
   //std::cout << "visitBlk" << std::endl;
@@ -450,15 +467,8 @@ void Compiler::visitEApp(EApp *e_app)//TODO this should push function's type ont
   int previousArgCounter = argCounter;
   argCounter = 0;
   countArgs(e_app->listexpr_);//this function won't execute these expressions, it will just count them
-  bufAppend("movq %rsp, %rax\n");
-  bufAppend("subq $");
-  bufAppend(std::to_string(8 * (argCounter + 1)));//number of args + return address size
-  bufAppend(", %rax\n");
-  bufAppend("xorq %rdx, %rdx\n");
-  bufAppend("movq $16, %rcx\n");
-  bufAppend("idivq %rcx\n");
-  bufAppend("subq %rdx, %rsp\n");//pad RSP
-  bufAppend("pushq %rdx\n");//push padding onto stack
+
+  alignStack(argCounter);
 
   /* Push args onto the stack */
   pushArgsOntoStack(e_app->listexpr_);
@@ -479,10 +489,7 @@ void Compiler::visitEApp(EApp *e_app)//TODO this should push function's type ont
     bufAppend(", %rsp\n");
   }
 
-  /* Remove padding */
-  bufAppend("popq %rdx\n");
-  bufAppend("addq %rdx, %rsp\n");
-
+  removePadding();
   //std::cout << "Exiting visitEApp" << std::endl;
 }
 
@@ -611,14 +618,7 @@ void Compiler::visitPlus(Plus *plus)
     /* Save original locations of both strings */
     bufAppend("movq %rax, %r12\n");//original address of first string
     bufAppend("movq %rbx, %r13\n");//original address of second string
-    /* Align stack */
-    bufAppend("movq %rsp, %rax\n");
-    bufAppend("subq $8, %rax\n");
-    bufAppend("xorq %rdx, %rdx\n");
-    bufAppend("movq $16, %rcx\n");
-    bufAppend("idivq %rcx\n");
-    bufAppend("subq %rdx, %rsp\n");//pad RSP
-    bufAppend("pushq %rdx\n");//push padding onto stack
+    alignStack(0);
 
     /* Get length of first string */
     bufAppend("movq %r12, %rax\n");
@@ -650,9 +650,7 @@ void Compiler::visitPlus(Plus *plus)
     bufAppend("subq $1, %rdi\n");
     bufAppend("call _malloc\n");
     bufAppend("movq %rax, %r14\n");//result string address
-    /* Remove padding */
-    bufAppend("popq %rdx\n");
-    bufAppend("addq %rdx, %rsp\n");
+    removePadding();
     /* Copy first string */
     bufAppend("jmp concat1StringsWriteCheck");
     bufAppend(std::to_string(stringConcatLabelCounter));
@@ -711,21 +709,34 @@ void Compiler::visitTimes(Times *times)
   //std::cout << "Exiting visitTimes" << std::endl;
 }
 
+void Compiler::performDiv() {
+  bufAppend("cmpq $0, %rax\n");
+  bufAppend("jne PerformDivLabel");
+  bufAppend(std::to_string(divisionCounter));
+  bufAppend("\n");
+  /* Division by 0 attempt discovered */
+  alignStack(0);
+  bufAppend("call _exit\n");
+
+  bufAppend("PerformDivLabel");
+  bufAppend(std::to_string(divisionCounter));
+  bufAppend(":\n");
+  bufAppend("xor %rdx, %rdx\n");
+  bufAppend("cdq\n");
+  bufAppend("idiv %rbx\n");
+}
+
 void Compiler::visitDiv(Div *div)
 {
   //std::cout << "visitDiv" << std::endl;
-  //TODO check for division by 0
-  bufAppend("cdq\n");
-  bufAppend("idiv %rbx\n");
+  performDiv();
   //std::cout << "Exiting visitDiv" << std::endl;
 }
 
 void Compiler::visitMod(Mod *mod)
 {
   //std::cout << "visitMod" << std::endl;
-  //TODO check for division by 0
-  bufAppend("cdq\n");
-  bufAppend("idiv %rbx\n");
+  performDiv();
   //The remainder is stored in rdx, move it into rax
   bufAppend("movq %rdx, %rax\n");
   //std::cout << "Exiting visitMod" << std::endl;
@@ -886,13 +897,7 @@ void Compiler::visitString(String x)
   typesStack.push(STRING_CODE);
 
   /* Align stack before calling malloc */
-  bufAppend("movq %rsp, %rax\n");
-  bufAppend("subq $8, %rax\n");
-  bufAppend("xorq %rdx, %rdx\n");
-  bufAppend("movq $16, %rcx\n");
-  bufAppend("idivq %rcx\n");
-  bufAppend("subq %rdx, %rsp\n");
-  bufAppend("pushq %rdx\n");
+  alignStack(0);
 
   bufAppend("movq $");
   bufAppend(std::to_string(x.length() + 1));
@@ -908,9 +913,7 @@ void Compiler::visitString(String x)
   }
   bufAppend("movb $0, (%rbx)\n");
 
-  /* Remove padding */
-  bufAppend("popq %rdx\n");
-  bufAppend("addq %rdx, %rsp\n");
+  removePadding();
 
   //std::cout << "Exiting visitString" << std::endl;
 }
