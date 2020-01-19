@@ -93,15 +93,17 @@ private:
   void performDiv();
   void alignStack(int numberOfArgs);
   void removePadding();
+  void freeStrings(std::unordered_set<int> allocatedStringsSet);
 
   char *buf_;
   int cur_, buf_size;
   unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter, stringConcatLabelCounter;
-  unsigned int functionLabelCounter, stackCounterBeforeFn, divisionCounter;
+  unsigned int functionLabelCounter, stackCounterBeforeFn, divisionCounter, skipFreeCounter;
   bool functionBlock;
   std::stack<int> typesStack;
-  std::unordered_map<Ident, long long> variablesMap;//<Ident, offset from RBP>
+  std::unordered_map<Ident, int> variablesMap;//<Ident, offset from RBP>
   std::unordered_map<Ident, int> typesMap;//<Ident, type>
+  std::unordered_set<int> allocatedStringsBlock, allocatedStringsFunction;//<offset from RBP>
 
   std::string header = ".globl _main\n";
   std::string footer = "\n";

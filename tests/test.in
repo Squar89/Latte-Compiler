@@ -1,12 +1,8 @@
 int main() {
-  string y = foo();
+  string x = "x";
+  string y = "y";
 
-  printString(y);
+  printString(x + y);
 
   return 0;
-}
-
-string foo() {
-    string x = "123";
-    return x;
 }

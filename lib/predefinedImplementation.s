@@ -5,7 +5,7 @@
   formatReadString: .asciz "%s"
 
 .bss
-  buffer: .space 10000
+  buffer: .space 100000
 
 .text
   .globl _printInt
@@ -57,6 +57,15 @@ _printString:
   movq 16(%rbp), %rsi
   xor %rax, %rax
   call _printf
+
+  #decrease reference count on argument string and free it if it drops to 0
+  movq 16(%rbp), %rdi
+  decq %rdi
+  decb (%rdi)
+  cmpb $0, (%rdi)
+  jne libSkipFree
+  call _free
+  libSkipFree:
 
   popq %rdx
   addq %rdx, %rsp
@@ -128,7 +137,10 @@ _readString:
     incq %rax
     cmpb $0, (%rax)
     jne count
+  incq %rdi#make space for reference count
   call _malloc
+  movb $0, (%rax)
+  incq %rax
   movq %rax, %rbx
   leaq buffer(%rip), %rcx
   #copy string from one address (%rcx) to the other (%rbx)

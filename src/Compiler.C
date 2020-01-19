@@ -26,6 +26,7 @@ char* Compiler::compile(Program *p, Program *lib) {
   argCounter = 0;
   functionLabelCounter = 0;
   stringConcatLabelCounter = 0;
+  skipFreeCounter = 0;
   functionBlock = false;
   bufAppend(header);
 
@@ -61,11 +62,40 @@ void Compiler::visitProg(Prog *prog)
   //std::cout << "Exiting visitProg" << std::endl;
 }
 
+void Compiler::freeStrings(std::unordered_set<int> allocatedStringsSet)
+{
+  if (!allocatedStringsSet.empty()) {
+    bufAppend("pushq %rax\n");
+    alignStack(0);
+    
+    for (auto it = allocatedStringsSet.begin(); it != allocatedStringsSet.end(); it++) {
+      int offset = *it;
+      bufAppend("movq ");
+      bufAppend(std::to_string(offset));
+      bufAppend("(%rbp), %rdi\n");
+      bufAppend("decq %rdi\n");
+      bufAppend("decb (%rdi)\n");
+      bufAppend("cmpb $0, (%rdi)\n");
+      bufAppend("jne skipFreeLabel");
+      bufAppend(std::to_string(skipFreeCounter));
+      bufAppend("\n");
+      bufAppend("call _free\n");
+      bufAppend("skipFreeLabel");
+      bufAppend(std::to_string(skipFreeCounter++));
+      bufAppend(":\n");
+    }
+    
+    removePadding();
+    bufAppend("popq %rax\n");
+  }
+}
+
 void Compiler::visitFnDef(FnDef *fn_def)
 {
   //std::cout << "visitFnDef" << std::endl;
   functionLabelCounter++;
   stackCounterBeforeFn = stackCounter;
+  allocatedStringsFunction.clear();
 
   fn_def->type_->accept(this);
   typesStack.pop();
@@ -111,6 +141,9 @@ void Compiler::visitAr(Ar *ar)
   argCounter++;
   variablesMap.insert(std::make_pair(ar->ident_, 8 + (argCounter * 8)));
   typesMap.insert(std::make_pair(ar->ident_, typesStack.top()));
+  if (typesStack.top() == STRING_CODE) {
+    allocatedStringsFunction.insert(8 + (argCounter * 8));
+  }
   typesStack.pop();
   //std::cout << "Exiting visitAr" << std::endl;
 }
@@ -135,16 +168,23 @@ void Compiler::removePadding() {
 void Compiler::visitBlk(Blk *blk)
 {
   //std::cout << "visitBlk" << std::endl;
-  std::unordered_map<Ident, long long> variablesMapCopy(variablesMap);
+  std::unordered_map<Ident, int> variablesMapCopy(variablesMap);
   std::unordered_map<Ident, int> typesMapCopy(typesMap);
+  std::unordered_set<int> allocatedStringsBlockCopy(allocatedStringsBlock);
+  allocatedStringsBlock.clear();
   unsigned int stackCounterBeforeBlk = stackCounter;
   bool isFunctionBlock = functionBlock;
   functionBlock = false;
 
   blk->liststmt_->accept(this);
 
-  variablesMap = variablesMapCopy;
-  typesMap = typesMapCopy;
+  /* Free allocated strings in the local block */
+  if (!isFunctionBlock) {
+    freeStrings(allocatedStringsBlock);
+    for (auto it = allocatedStringsBlock.begin(); it != allocatedStringsBlock.end(); it++) {
+      allocatedStringsFunction.erase(*it);
+    }
+  }
 
   /* Deallocate local variables from previous block and restore stackCounter */
   if (!isFunctionBlock && stackCounter - stackCounterBeforeBlk > 0) {
@@ -154,6 +194,10 @@ void Compiler::visitBlk(Blk *blk)
     bufAppend(", %rsp\n");
   }
   stackCounter = stackCounterBeforeBlk;
+
+  variablesMap = variablesMapCopy;
+  typesMap = typesMapCopy;
+  allocatedStringsBlock = allocatedStringsBlockCopy;
   //std::cout << "Exiting visitBlk" << std::endl;
 }
 
@@ -180,10 +224,35 @@ void Compiler::visitAss(Ass *ass)
 {
   //std::cout << "visitAss" << std::endl;
   visitIdent(ass->ident_);
+  int offset = variablesMap.find(ass->ident_)->second;
+
   ass->expr_->accept(this);
+
+  /* If variable is of string type then free/decrease reference count for previously held value */
+  if (typesStack.top() == STRING_CODE) {
+    bufAppend("pushq %rax\n");
+    alignStack(0);
+    bufAppend("movq ");
+    bufAppend(std::to_string(offset));
+    bufAppend("(%rbp), %rdi\n");
+    bufAppend("decq %rdi\n");
+    bufAppend("decb (%rdi)\n");
+    bufAppend("cmpb $0, (%rdi)\n");
+    bufAppend("jne skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter));
+    bufAppend("\n");
+    bufAppend("call _free\n");
+    bufAppend("skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter++));
+    bufAppend(":\n");
+    removePadding();
+    bufAppend("popq %rax\n");
+
+    /* Increase reference count for new value */
+    bufAppend("incb -1(%rax)\n");
+  }
   typesStack.pop();
 
-  int offset = variablesMap.find(ass->ident_)->second;
   bufAppend("movq %rax, ");
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp)\n");
@@ -218,7 +287,24 @@ void Compiler::visitRet(Ret *ret)
 {
   //std::cout << "visitRet" << std::endl;
   ret->expr_->accept(this);
+  int offsetToSkip;
+  bool skip = false;
+
+  /* If we are returning a string and it was stored in a variable, prevent it from being freed in a second */
+  if (typesStack.top() == STRING_CODE) {
+    EVar *e_var = dynamic_cast<EVar*>(ret->expr_);
+    if (e_var != NULL) {
+      offsetToSkip = variablesMap.find(e_var->ident_)->second;
+      skip = true;
+      allocatedStringsFunction.erase(offsetToSkip);
+    }
+  }
   typesStack.pop();
+
+  freeStrings(allocatedStringsFunction);
+  if (skip) {
+    allocatedStringsFunction.insert(offsetToSkip);
+  }
 
   /* Deallocate variables allocated in this function up to this return */
   if (stackCounter - stackCounterBeforeFn > 0) {
@@ -238,6 +324,8 @@ void Compiler::visitRet(Ret *ret)
 void Compiler::visitVRet(VRet *v_ret)
 {
   //std::cout << "visitVRet\n";
+
+  freeStrings(allocatedStringsFunction);
 
   /* Deallocate variables allocated in this function up to this return */
   if (stackCounter - stackCounterBeforeFn > 0) {
@@ -332,6 +420,20 @@ void Compiler::visitSExp(SExp *s_exp)
 {
   //std::cout << "visitSExp" << std::endl;
   s_exp->expr_->accept(this);
+  
+  /* If the expression was of string type and is not a variable then free the string */
+  if (typesStack.top() == STRING_CODE) {
+    EVar *e_var = dynamic_cast<EVar*>(s_exp->expr_);
+    if (e_var == NULL) {
+      /* Now we know that this expression wasn't a variable */
+      bufAppend("movq %rax, %rdi\n");
+      alignStack(0);
+      bufAppend("decq %rdi\n");
+      bufAppend("call _free\n");
+      removePadding();
+    }
+  }
+
   typesStack.pop();
   //std::cout << "Exiting visitSExp" << std::endl;
 }
@@ -340,17 +442,26 @@ void Compiler::declareVariable(Ident ident)
 {
   //std::cout << "declareVariable: " << ident << std::endl;
   stackCounter++;
+  int offset = stackCounter * -8;
 
   /* Check if this declaration overshadows variable from higher block */
   if (auto it = variablesMap.find(ident); it != variablesMap.end()) {
     /* The overshadowed variable offset will be recovered later on, when leaving the block */
-    it->second = stackCounter * -8;
+    it->second = offset;
     typesMap.find(ident)->second = typesStack.top();
   }
   /* Otherwise just declare the variable */
   else {
-    variablesMap.insert(std::make_pair(ident, stackCounter * -8));
+    variablesMap.insert(std::make_pair(ident, offset));
     typesMap.insert(std::make_pair(ident, typesStack.top()));
+  }
+
+  if (typesStack.top() == STRING_CODE) {
+    allocatedStringsBlock.insert(offset);
+    allocatedStringsFunction.insert(offset);
+
+    /* Increase reference count for current value */
+    bufAppend("incb -1(%rax)\n");
   }
 
   bufAppend("pushq %rax\n");
@@ -417,7 +528,7 @@ void Compiler::visitFun(Fun *fun)
 {
   //std::cout << "visitFun" << std::endl;
   fun->type_->accept(this);
-  //TODO pop stack?
+  //TODO remove this?
   fun->listtype_->accept(this);
   //std::cout << "Exiting visitFun" << std::endl;
 }
@@ -456,11 +567,13 @@ void Compiler::visitELitFalse(ELitFalse *e_lit_false) {
   //std::cout << "Exiting visitELitFalse" << std::endl;
 }
 
-void Compiler::visitEApp(EApp *e_app)//TODO this should push function's type onto stack
+void Compiler::visitEApp(EApp *e_app)
 {
   //std::cout << "visitEApp" << std::endl;
   visitIdent(e_app->ident_);
 
+  std::unordered_set<int> allocatedStringsFunctionCopy(allocatedStringsFunction);
+  allocatedStringsFunction.clear();
   typesStack.push(typesMap.find(e_app->ident_)->second);
 
   /* Align stack to 16 */
@@ -490,6 +603,7 @@ void Compiler::visitEApp(EApp *e_app)//TODO this should push function's type ont
   }
 
   removePadding();
+  allocatedStringsFunction = allocatedStringsFunctionCopy;
   //std::cout << "Exiting visitEApp" << std::endl;
 }
 
@@ -536,12 +650,44 @@ void Compiler::visitEMul(EMul *e_mul)
 void Compiler::visitEAdd(EAdd *e_add)
 {
   //std::cout << "visitEAdd" << std::endl;
+  bufAppend("pushq %r12\n");
+  bufAppend("pushq %r13\n");
+  
   e_add->expr_1->accept(this);
   bufAppend("pushq %rax\n");
   e_add->expr_2->accept(this);
   bufAppend("movq %rax, %rbx\n");
   bufAppend("popq %rax\n");
+  bufAppend("movq %rax, %r12\n");//store first string's address
+  bufAppend("movq %rbx, %r13\n");//store second string's address
   e_add->addop_->accept(this);
+  bufAppend("pushq %rax\n");
+
+  /* Check if any of the used expressions was a string that needs to be freed */
+  if (typesStack.top() == STRING_CODE) {
+    EVar *e_var = dynamic_cast<EVar*>(e_add->expr_1);
+    if (e_var == NULL) {
+      /* Now we know that this expression wasn't a variable */
+      bufAppend("movq %r12, %rdi\n");
+      alignStack(0);
+      bufAppend("decq %rdi\n");
+      bufAppend("call _free\n");
+      removePadding();
+    }
+    e_var = dynamic_cast<EVar*>(e_add->expr_2);
+    if (e_var == NULL) {
+      /* Now we know that this expression wasn't a variable */
+      bufAppend("movq %r13, %rdi\n");
+      alignStack(0);
+      bufAppend("decq %rdi\n");
+      bufAppend("call _free\n");
+      removePadding();
+    }
+  }
+
+  bufAppend("popq %rax\n");
+  bufAppend("popq %r13\n");
+  bufAppend("popq %r12\n");
 
   /* pop one type code and leave the other */
   typesStack.pop();
@@ -647,8 +793,9 @@ void Compiler::visitPlus(Plus *plus)
     bufAppend(std::to_string(stringConcatLabelCounter));
     bufAppend("\n");
     /* Call malloc */
-    bufAppend("subq $1, %rdi\n");
     bufAppend("call _malloc\n");
+    bufAppend("movb $0, (%rax)\n");
+    bufAppend("incq %rax\n");
     bufAppend("movq %rax, %r14\n");//result string address
     removePadding();
     /* Copy first string */
@@ -719,7 +866,7 @@ void Compiler::performDiv() {
   bufAppend("call _exit\n");
 
   bufAppend("PerformDivLabel");
-  bufAppend(std::to_string(divisionCounter));
+  bufAppend(std::to_string(divisionCounter++));
   bufAppend(":\n");
   bufAppend("xor %rdx, %rdx\n");
   bufAppend("cdq\n");
@@ -861,6 +1008,9 @@ void Compiler::pushArgsOntoStack(ListExpr *list_expr)
   for (ListExpr::reverse_iterator i = list_expr->rbegin() ; i != list_expr->rend() ; ++i)
   {
     (*i)->accept(this);
+    if (typesStack.top() == STRING_CODE) {
+      bufAppend("incb -1(%rax)\n");
+    }
     typesStack.pop();
     bufAppend("pushq %rax\n");
   }
@@ -900,10 +1050,13 @@ void Compiler::visitString(String x)
   alignStack(0);
 
   bufAppend("movq $");
-  bufAppend(std::to_string(x.length() + 1));
+  bufAppend(std::to_string(x.length() + 2));//one more for null limiter and one more for reference counting
   bufAppend(", %rdi\n");
 
+  /* (ReferenceCount|Characters|Null limiter) with sizes (1|x|1) */
   bufAppend("call _malloc\n");
+  bufAppend("movb $0, (%rax)\n");
+  bufAppend("incq %rax\n");
   bufAppend("movq %rax, %rbx\n");
   for (size_t i = 0; i < x.length(); i++) {
     bufAppend("movb $");
