@@ -14,8 +14,13 @@ class Block;
 class ListStmt;
 class Stmt;
 class Item;
+class ItemArr;
 class ListItem;
+class SimpleType;
+class ArrType;
 class Type;
+class ListSimpleType;
+class ListArrType;
 class ListType;
 class Expr;
 class ListExpr;
@@ -38,8 +43,13 @@ typedef union
   ListStmt* liststmt_;
   Stmt* stmt_;
   Item* item_;
+  ItemArr* itemarr_;
   ListItem* listitem_;
+  SimpleType* simpletype_;
+  ArrType* arrtype_;
   Type* type_;
+  ListSimpleType* listsimpletype_;
+  ListArrType* listarrtype_;
   ListType* listtype_;
   Expr* expr_;
   ListExpr* listexpr_;
@@ -87,9 +97,16 @@ Program* pProgram(const char *str);
 #define _SYMB_30 289
 #define _SYMB_31 290
 #define _SYMB_32 291
-#define _STRING_ 292
-#define _INTEGER_ 293
-#define _IDENT_ 294
+#define _SYMB_33 292
+#define _SYMB_34 293
+#define _SYMB_35 294
+#define _SYMB_36 295
+#define _SYMB_37 296
+#define _SYMB_38 297
+#define _SYMB_39 298
+#define _STRING_ 299
+#define _INTEGER_ 300
+#define _IDENT_ 301
 
 extern YYSTYPE yylval;
 

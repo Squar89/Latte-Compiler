@@ -25,6 +25,9 @@ class Arg;
 class Block;
 class Stmt;
 class Item;
+class ItemArr;
+class SimpleType;
+class ArrType;
 class Type;
 class Expr;
 class AddOp;
@@ -37,23 +40,36 @@ class Blk;
 class Empty;
 class BStmt;
 class Decl;
+class DeclArr;
 class NoInit;
 class Init;
+class NoInitArr;
+class InitArr;
+class InitArrE;
+class InitArrSt;
 class Ass;
+class AssArr;
 class Incr;
+class IncrArr;
 class Decr;
+class DecrArr;
 class Ret;
 class VRet;
 class Cond;
 class CondElse;
 class While;
+class ForEach;
 class SExp;
 class Int;
 class Str;
 class Bool;
 class Void;
-class Fun;
+class Arr;
+class AbsAT;
+class AbsST;
 class EVar;
+class EVarArr;
+class EAtr;
 class ELitInt;
 class ELitTrue;
 class ELitFalse;
@@ -81,6 +97,8 @@ class ListTopDef;
 class ListArg;
 class ListStmt;
 class ListItem;
+class ListSimpleType;
+class ListArrType;
 class ListType;
 class ListExpr;
 
@@ -96,6 +114,9 @@ public:
   virtual void visitBlock(Block *p) = 0;
   virtual void visitStmt(Stmt *p) = 0;
   virtual void visitItem(Item *p) = 0;
+  virtual void visitItemArr(ItemArr *p) = 0;
+  virtual void visitSimpleType(SimpleType *p) = 0;
+  virtual void visitArrType(ArrType *p) = 0;
   virtual void visitType(Type *p) = 0;
   virtual void visitExpr(Expr *p) = 0;
   virtual void visitAddOp(AddOp *p) = 0;
@@ -108,23 +129,36 @@ public:
   virtual void visitEmpty(Empty *p) = 0;
   virtual void visitBStmt(BStmt *p) = 0;
   virtual void visitDecl(Decl *p) = 0;
+  virtual void visitDeclArr(DeclArr *p) = 0;
   virtual void visitNoInit(NoInit *p) = 0;
   virtual void visitInit(Init *p) = 0;
+  virtual void visitNoInitArr(NoInitArr *p) = 0;
+  virtual void visitInitArr(InitArr *p) = 0;
+  virtual void visitInitArrE(InitArrE *p) = 0;
+  virtual void visitInitArrSt(InitArrSt *p) = 0;
   virtual void visitAss(Ass *p) = 0;
+  virtual void visitAssArr(AssArr *p) = 0;
   virtual void visitIncr(Incr *p) = 0;
+  virtual void visitIncrArr(IncrArr *p) = 0;
   virtual void visitDecr(Decr *p) = 0;
+  virtual void visitDecrArr(DecrArr *p) = 0;
   virtual void visitRet(Ret *p) = 0;
   virtual void visitVRet(VRet *p) = 0;
   virtual void visitCond(Cond *p) = 0;
   virtual void visitCondElse(CondElse *p) = 0;
   virtual void visitWhile(While *p) = 0;
+  virtual void visitForEach(ForEach *p) = 0;
   virtual void visitSExp(SExp *p) = 0;
   virtual void visitInt(Int *p) = 0;
   virtual void visitStr(Str *p) = 0;
   virtual void visitBool(Bool *p) = 0;
   virtual void visitVoid(Void *p) = 0;
-  virtual void visitFun(Fun *p) = 0;
+  virtual void visitArr(Arr *p) = 0;
+  virtual void visitAbsAT(AbsAT *p) = 0;
+  virtual void visitAbsST(AbsST *p) = 0;
   virtual void visitEVar(EVar *p) = 0;
+  virtual void visitEVarArr(EVarArr *p) = 0;
+  virtual void visitEAtr(EAtr *p) = 0;
   virtual void visitELitInt(ELitInt *p) = 0;
   virtual void visitELitTrue(ELitTrue *p) = 0;
   virtual void visitELitFalse(ELitFalse *p) = 0;
@@ -152,6 +186,8 @@ public:
   virtual void visitListArg(ListArg *p) = 0;
   virtual void visitListStmt(ListStmt *p) = 0;
   virtual void visitListItem(ListItem *p) = 0;
+  virtual void visitListSimpleType(ListSimpleType *p) = 0;
+  virtual void visitListArrType(ListArrType *p) = 0;
   virtual void visitListType(ListType *p) = 0;
   virtual void visitListExpr(ListExpr *p) = 0;
 
@@ -214,6 +250,27 @@ class Item : public Visitable
 {
 public:
   virtual Item *clone() const = 0;
+  int line_number;
+};
+
+class ItemArr : public Visitable
+{
+public:
+  virtual ItemArr *clone() const = 0;
+  int line_number;
+};
+
+class SimpleType : public Visitable
+{
+public:
+  virtual SimpleType *clone() const = 0;
+  int line_number;
+};
+
+class ArrType : public Visitable
+{
+public:
+  virtual ArrType *clone() const = 0;
   int line_number;
 };
 
@@ -344,16 +401,47 @@ public:
 class Decl : public Stmt
 {
 public:
-  Type *type_;
+  SimpleType *simpletype_;
   ListItem *listitem_;
 
   Decl(const Decl &);
   Decl &operator=(const Decl &);
-  Decl(Type *p1, ListItem *p2);
+  Decl(SimpleType *p1, ListItem *p2);
   ~Decl();
   virtual void accept(Visitor *v);
   virtual Decl *clone() const;
   void swap(Decl &);
+};
+
+class DeclArr : public Stmt
+{
+public:
+  ArrType *arrtype_;
+  ItemArr *itemarr_;
+
+  DeclArr(const DeclArr &);
+  DeclArr &operator=(const DeclArr &);
+  DeclArr(ArrType *p1, ItemArr *p2);
+  ~DeclArr();
+  virtual void accept(Visitor *v);
+  virtual DeclArr *clone() const;
+  void swap(DeclArr &);
+};
+
+class InitArrSt : public Stmt
+{
+public:
+  Ident ident_;
+  SimpleType *simpletype_;
+  Expr *expr_;
+
+  InitArrSt(const InitArrSt &);
+  InitArrSt &operator=(const InitArrSt &);
+  InitArrSt(Ident p1, SimpleType *p2, Expr *p3);
+  ~InitArrSt();
+  virtual void accept(Visitor *v);
+  virtual InitArrSt *clone() const;
+  void swap(InitArrSt &);
 };
 
 class Ass : public Stmt
@@ -371,6 +459,22 @@ public:
   void swap(Ass &);
 };
 
+class AssArr : public Stmt
+{
+public:
+  Ident ident_;
+  Expr *expr_1;
+  Expr *expr_2;
+
+  AssArr(const AssArr &);
+  AssArr &operator=(const AssArr &);
+  AssArr(Ident p1, Expr *p2, Expr *p3);
+  ~AssArr();
+  virtual void accept(Visitor *v);
+  virtual AssArr *clone() const;
+  void swap(AssArr &);
+};
+
 class Incr : public Stmt
 {
 public:
@@ -385,6 +489,21 @@ public:
   void swap(Incr &);
 };
 
+class IncrArr : public Stmt
+{
+public:
+  Ident ident_;
+  Expr *expr_;
+
+  IncrArr(const IncrArr &);
+  IncrArr &operator=(const IncrArr &);
+  IncrArr(Ident p1, Expr *p2);
+  ~IncrArr();
+  virtual void accept(Visitor *v);
+  virtual IncrArr *clone() const;
+  void swap(IncrArr &);
+};
+
 class Decr : public Stmt
 {
 public:
@@ -397,6 +516,21 @@ public:
   virtual void accept(Visitor *v);
   virtual Decr *clone() const;
   void swap(Decr &);
+};
+
+class DecrArr : public Stmt
+{
+public:
+  Ident ident_;
+  Expr *expr_;
+
+  DecrArr(const DecrArr &);
+  DecrArr &operator=(const DecrArr &);
+  DecrArr(Ident p1, Expr *p2);
+  ~DecrArr();
+  virtual void accept(Visitor *v);
+  virtual DecrArr *clone() const;
+  void swap(DecrArr &);
 };
 
 class Ret : public Stmt
@@ -472,6 +606,23 @@ public:
   void swap(While &);
 };
 
+class ForEach : public Stmt
+{
+public:
+  SimpleType *simpletype_;
+  Ident ident_1;
+  Ident ident_2;
+  Stmt *stmt_;
+
+  ForEach(const ForEach &);
+  ForEach &operator=(const ForEach &);
+  ForEach(SimpleType *p1, Ident p2, Ident p3, Stmt *p4);
+  ~ForEach();
+  virtual void accept(Visitor *v);
+  virtual ForEach *clone() const;
+  void swap(ForEach &);
+};
+
 class SExp : public Stmt
 {
 public:
@@ -515,7 +666,52 @@ public:
   void swap(Init &);
 };
 
-class Int : public Type
+class NoInitArr : public ItemArr
+{
+public:
+  Ident ident_;
+
+  NoInitArr(const NoInitArr &);
+  NoInitArr &operator=(const NoInitArr &);
+  NoInitArr(Ident p1);
+  ~NoInitArr();
+  virtual void accept(Visitor *v);
+  virtual NoInitArr *clone() const;
+  void swap(NoInitArr &);
+};
+
+class InitArr : public ItemArr
+{
+public:
+  Ident ident_;
+  SimpleType *simpletype_;
+  Expr *expr_;
+
+  InitArr(const InitArr &);
+  InitArr &operator=(const InitArr &);
+  InitArr(Ident p1, SimpleType *p2, Expr *p3);
+  ~InitArr();
+  virtual void accept(Visitor *v);
+  virtual InitArr *clone() const;
+  void swap(InitArr &);
+};
+
+class InitArrE : public ItemArr
+{
+public:
+  Ident ident_;
+  Expr *expr_;
+
+  InitArrE(const InitArrE &);
+  InitArrE &operator=(const InitArrE &);
+  InitArrE(Ident p1, Expr *p2);
+  ~InitArrE();
+  virtual void accept(Visitor *v);
+  virtual InitArrE *clone() const;
+  void swap(InitArrE &);
+};
+
+class Int : public SimpleType
 {
 public:
 
@@ -528,7 +724,7 @@ public:
   void swap(Int &);
 };
 
-class Str : public Type
+class Str : public SimpleType
 {
 public:
 
@@ -541,7 +737,7 @@ public:
   void swap(Str &);
 };
 
-class Bool : public Type
+class Bool : public SimpleType
 {
 public:
 
@@ -554,7 +750,7 @@ public:
   void swap(Bool &);
 };
 
-class Void : public Type
+class Void : public SimpleType
 {
 public:
 
@@ -567,19 +763,46 @@ public:
   void swap(Void &);
 };
 
-class Fun : public Type
+class Arr : public ArrType
 {
 public:
-  Type *type_;
-  ListType *listtype_;
+  SimpleType *simpletype_;
 
-  Fun(const Fun &);
-  Fun &operator=(const Fun &);
-  Fun(Type *p1, ListType *p2);
-  ~Fun();
+  Arr(const Arr &);
+  Arr &operator=(const Arr &);
+  Arr(SimpleType *p1);
+  ~Arr();
   virtual void accept(Visitor *v);
-  virtual Fun *clone() const;
-  void swap(Fun &);
+  virtual Arr *clone() const;
+  void swap(Arr &);
+};
+
+class AbsAT : public Type
+{
+public:
+  ArrType *arrtype_;
+
+  AbsAT(const AbsAT &);
+  AbsAT &operator=(const AbsAT &);
+  AbsAT(ArrType *p1);
+  ~AbsAT();
+  virtual void accept(Visitor *v);
+  virtual AbsAT *clone() const;
+  void swap(AbsAT &);
+};
+
+class AbsST : public Type
+{
+public:
+  SimpleType *simpletype_;
+
+  AbsST(const AbsST &);
+  AbsST &operator=(const AbsST &);
+  AbsST(SimpleType *p1);
+  ~AbsST();
+  virtual void accept(Visitor *v);
+  virtual AbsST *clone() const;
+  void swap(AbsST &);
 };
 
 class EVar : public Expr
@@ -594,6 +817,35 @@ public:
   virtual void accept(Visitor *v);
   virtual EVar *clone() const;
   void swap(EVar &);
+};
+
+class EVarArr : public Expr
+{
+public:
+  Ident ident_;
+  Expr *expr_;
+
+  EVarArr(const EVarArr &);
+  EVarArr &operator=(const EVarArr &);
+  EVarArr(Ident p1, Expr *p2);
+  ~EVarArr();
+  virtual void accept(Visitor *v);
+  virtual EVarArr *clone() const;
+  void swap(EVarArr &);
+};
+
+class EAtr : public Expr
+{
+public:
+  Ident ident_;
+
+  EAtr(const EAtr &);
+  EAtr &operator=(const EAtr &);
+  EAtr(Ident p1);
+  ~EAtr();
+  virtual void accept(Visitor *v);
+  virtual EAtr *clone() const;
+  void swap(EAtr &);
 };
 
 class ELitInt : public Expr
@@ -942,6 +1194,20 @@ class ListItem : public Visitable, public std::vector<Item*>
 public:
   virtual void accept(Visitor *v);
   virtual ListItem *clone() const;
+};
+
+class ListSimpleType : public Visitable, public std::vector<SimpleType*>
+{
+public:
+  virtual void accept(Visitor *v);
+  virtual ListSimpleType *clone() const;
+};
+
+class ListArrType : public Visitable, public std::vector<ArrType*>
+{
+public:
+  virtual void accept(Visitor *v);
+  virtual ListArrType *clone() const;
 };
 
 class ListType : public Visitable, public std::vector<Type*>

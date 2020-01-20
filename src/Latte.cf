@@ -4,11 +4,11 @@ entrypoints Program ;
 
 Prog.      Program ::= [TopDef] ;
 
-FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
+FnDef.     TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
 separator nonempty TopDef "" ;
 
-Ar. 	   Arg ::= Type Ident;
+Ar.        Arg ::= Type Ident;
 
 separator  Arg "," ;
 
@@ -22,19 +22,35 @@ Empty.     Stmt ::= ";" ;
 
 BStmt.     Stmt ::= Block ;
 
-Decl.      Stmt ::= Type [Item] ";" ;
+Decl.      Stmt ::= SimpleType [Item] ";" ;
+
+DeclArr.   Stmt ::= ArrType ItemArr ";" ;
 
 NoInit.    Item ::= Ident ; 
 
 Init.      Item ::= Ident "=" Expr ;
 
+NoInitArr. ItemArr ::= Ident ;
+
+InitArr.   ItemArr ::= Ident "=" "new" SimpleType "[" Expr "]" ;
+
+InitArrE.  ItemArr ::= Ident "=" Expr ;
+
+InitArrSt. Stmt ::= Ident "=" "new" SimpleType "[" Expr "]" ";" ;
+
 separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
+AssArr.    Stmt ::= Ident "[" Expr "]" "=" Expr ";" ;
+
 Incr.      Stmt ::= Ident "++"  ";" ;
 
+IncrArr.   Stmt ::= Ident "[" Expr "]" "++"  ";" ;
+
 Decr.      Stmt ::= Ident "--"  ";" ;
+
+DecrArr.   Stmt ::= Ident "[" Expr "]" "--"  ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 
@@ -46,25 +62,39 @@ CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
 
 While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
+ForEach.   Stmt ::= "for" "(" SimpleType Ident ":" Ident ")" Stmt ;
+
 SExp.      Stmt ::= Expr  ";" ;
 
 -- Types ---------------------------------------------------
 
-Int.       Type ::= "int" ;
+Int.       SimpleType ::= "int" ;
 
-Str.       Type ::= "string" ;
+Str.       SimpleType ::= "string" ;
 
-Bool.      Type ::= "boolean" ;
+Bool.      SimpleType ::= "boolean" ;
 
-Void.      Type ::= "void" ;
+Void.      SimpleType ::= "void" ;
 
-internal   Fun. Type ::= Type "(" [Type] ")" ;
+Arr.       ArrType ::= SimpleType "[" "]" ;
+
+AbsAT.     Type ::= ArrType ;
+
+AbsST.     Type ::= SimpleType ; 
+
+separator  SimpleType "," ;
+
+separator  ArrType "," ;
 
 separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
 EVar.      Expr6 ::= Ident ;
+
+EVarArr.   Expr6 ::= Ident "[" Expr "]" ;
+
+EAtr.      Expr6 ::= Ident "." "length" ;
 
 ELitInt.   Expr6 ::= Integer ;
 

@@ -279,16 +279,16 @@ BStmt *BStmt::clone() const
 
 
 /********************   Decl    ********************/
-Decl::Decl(Type *p1, ListItem *p2)
+Decl::Decl(SimpleType *p1, ListItem *p2)
 {
-  type_ = p1;
+  simpletype_ = p1;
   listitem_ = p2;
 
 }
 
 Decl::Decl(const Decl & other)
 {
-  type_ = other.type_->clone();
+  simpletype_ = other.simpletype_->clone();
   listitem_ = other.listitem_->clone();
 
 }
@@ -302,14 +302,14 @@ Decl &Decl::operator=(const Decl & other)
 
 void Decl::swap(Decl & other)
 {
-  std::swap(type_, other.type_);
+  std::swap(simpletype_, other.simpletype_);
   std::swap(listitem_, other.listitem_);
 
 }
 
 Decl::~Decl()
 {
-  delete(type_);
+  delete(simpletype_);
   delete(listitem_);
 
 }
@@ -322,6 +322,105 @@ void Decl::accept(Visitor *v)
 Decl *Decl::clone() const
 {
   return new Decl(*this);
+}
+
+
+
+/********************   DeclArr    ********************/
+DeclArr::DeclArr(ArrType *p1, ItemArr *p2)
+{
+  arrtype_ = p1;
+  itemarr_ = p2;
+
+}
+
+DeclArr::DeclArr(const DeclArr & other)
+{
+  arrtype_ = other.arrtype_->clone();
+  itemarr_ = other.itemarr_->clone();
+
+}
+
+DeclArr &DeclArr::operator=(const DeclArr & other)
+{
+  DeclArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void DeclArr::swap(DeclArr & other)
+{
+  std::swap(arrtype_, other.arrtype_);
+  std::swap(itemarr_, other.itemarr_);
+
+}
+
+DeclArr::~DeclArr()
+{
+  delete(arrtype_);
+  delete(itemarr_);
+
+}
+
+void DeclArr::accept(Visitor *v)
+{
+  v->visitDeclArr(this);
+}
+
+DeclArr *DeclArr::clone() const
+{
+  return new DeclArr(*this);
+}
+
+
+
+/********************   InitArrSt    ********************/
+InitArrSt::InitArrSt(Ident p1, SimpleType *p2, Expr *p3)
+{
+  ident_ = p1;
+  simpletype_ = p2;
+  expr_ = p3;
+
+}
+
+InitArrSt::InitArrSt(const InitArrSt & other)
+{
+  ident_ = other.ident_;
+  simpletype_ = other.simpletype_->clone();
+  expr_ = other.expr_->clone();
+
+}
+
+InitArrSt &InitArrSt::operator=(const InitArrSt & other)
+{
+  InitArrSt tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void InitArrSt::swap(InitArrSt & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(simpletype_, other.simpletype_);
+  std::swap(expr_, other.expr_);
+
+}
+
+InitArrSt::~InitArrSt()
+{
+  delete(simpletype_);
+  delete(expr_);
+
+}
+
+void InitArrSt::accept(Visitor *v)
+{
+  v->visitInitArrSt(this);
+}
+
+InitArrSt *InitArrSt::clone() const
+{
+  return new InitArrSt(*this);
 }
 
 
@@ -373,6 +472,57 @@ Ass *Ass::clone() const
 
 
 
+/********************   AssArr    ********************/
+AssArr::AssArr(Ident p1, Expr *p2, Expr *p3)
+{
+  ident_ = p1;
+  expr_1 = p2;
+  expr_2 = p3;
+
+}
+
+AssArr::AssArr(const AssArr & other)
+{
+  ident_ = other.ident_;
+  expr_1 = other.expr_1->clone();
+  expr_2 = other.expr_2->clone();
+
+}
+
+AssArr &AssArr::operator=(const AssArr & other)
+{
+  AssArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void AssArr::swap(AssArr & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(expr_1, other.expr_1);
+  std::swap(expr_2, other.expr_2);
+
+}
+
+AssArr::~AssArr()
+{
+  delete(expr_1);
+  delete(expr_2);
+
+}
+
+void AssArr::accept(Visitor *v)
+{
+  v->visitAssArr(this);
+}
+
+AssArr *AssArr::clone() const
+{
+  return new AssArr(*this);
+}
+
+
+
 /********************   Incr    ********************/
 Incr::Incr(Ident p1)
 {
@@ -416,6 +566,53 @@ Incr *Incr::clone() const
 
 
 
+/********************   IncrArr    ********************/
+IncrArr::IncrArr(Ident p1, Expr *p2)
+{
+  ident_ = p1;
+  expr_ = p2;
+
+}
+
+IncrArr::IncrArr(const IncrArr & other)
+{
+  ident_ = other.ident_;
+  expr_ = other.expr_->clone();
+
+}
+
+IncrArr &IncrArr::operator=(const IncrArr & other)
+{
+  IncrArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void IncrArr::swap(IncrArr & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(expr_, other.expr_);
+
+}
+
+IncrArr::~IncrArr()
+{
+  delete(expr_);
+
+}
+
+void IncrArr::accept(Visitor *v)
+{
+  v->visitIncrArr(this);
+}
+
+IncrArr *IncrArr::clone() const
+{
+  return new IncrArr(*this);
+}
+
+
+
 /********************   Decr    ********************/
 Decr::Decr(Ident p1)
 {
@@ -455,6 +652,53 @@ void Decr::accept(Visitor *v)
 Decr *Decr::clone() const
 {
   return new Decr(*this);
+}
+
+
+
+/********************   DecrArr    ********************/
+DecrArr::DecrArr(Ident p1, Expr *p2)
+{
+  ident_ = p1;
+  expr_ = p2;
+
+}
+
+DecrArr::DecrArr(const DecrArr & other)
+{
+  ident_ = other.ident_;
+  expr_ = other.expr_->clone();
+
+}
+
+DecrArr &DecrArr::operator=(const DecrArr & other)
+{
+  DecrArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void DecrArr::swap(DecrArr & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(expr_, other.expr_);
+
+}
+
+DecrArr::~DecrArr()
+{
+  delete(expr_);
+
+}
+
+void DecrArr::accept(Visitor *v)
+{
+  v->visitDecrArr(this);
+}
+
+DecrArr *DecrArr::clone() const
+{
+  return new DecrArr(*this);
 }
 
 
@@ -691,6 +935,60 @@ While *While::clone() const
 
 
 
+/********************   ForEach    ********************/
+ForEach::ForEach(SimpleType *p1, Ident p2, Ident p3, Stmt *p4)
+{
+  simpletype_ = p1;
+  ident_1 = p2;
+  ident_2 = p3;
+  stmt_ = p4;
+
+}
+
+ForEach::ForEach(const ForEach & other)
+{
+  simpletype_ = other.simpletype_->clone();
+  ident_1 = other.ident_1;
+  ident_2 = other.ident_2;
+  stmt_ = other.stmt_->clone();
+
+}
+
+ForEach &ForEach::operator=(const ForEach & other)
+{
+  ForEach tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void ForEach::swap(ForEach & other)
+{
+  std::swap(simpletype_, other.simpletype_);
+  std::swap(ident_1, other.ident_1);
+  std::swap(ident_2, other.ident_2);
+  std::swap(stmt_, other.stmt_);
+
+}
+
+ForEach::~ForEach()
+{
+  delete(simpletype_);
+  delete(stmt_);
+
+}
+
+void ForEach::accept(Visitor *v)
+{
+  v->visitForEach(this);
+}
+
+ForEach *ForEach::clone() const
+{
+  return new ForEach(*this);
+}
+
+
+
 /********************   SExp    ********************/
 SExp::SExp(Expr *p1)
 {
@@ -821,6 +1119,147 @@ void Init::accept(Visitor *v)
 Init *Init::clone() const
 {
   return new Init(*this);
+}
+
+
+
+/********************   NoInitArr    ********************/
+NoInitArr::NoInitArr(Ident p1)
+{
+  ident_ = p1;
+
+}
+
+NoInitArr::NoInitArr(const NoInitArr & other)
+{
+  ident_ = other.ident_;
+
+}
+
+NoInitArr &NoInitArr::operator=(const NoInitArr & other)
+{
+  NoInitArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void NoInitArr::swap(NoInitArr & other)
+{
+  std::swap(ident_, other.ident_);
+
+}
+
+NoInitArr::~NoInitArr()
+{
+
+}
+
+void NoInitArr::accept(Visitor *v)
+{
+  v->visitNoInitArr(this);
+}
+
+NoInitArr *NoInitArr::clone() const
+{
+  return new NoInitArr(*this);
+}
+
+
+
+/********************   InitArr    ********************/
+InitArr::InitArr(Ident p1, SimpleType *p2, Expr *p3)
+{
+  ident_ = p1;
+  simpletype_ = p2;
+  expr_ = p3;
+
+}
+
+InitArr::InitArr(const InitArr & other)
+{
+  ident_ = other.ident_;
+  simpletype_ = other.simpletype_->clone();
+  expr_ = other.expr_->clone();
+
+}
+
+InitArr &InitArr::operator=(const InitArr & other)
+{
+  InitArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void InitArr::swap(InitArr & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(simpletype_, other.simpletype_);
+  std::swap(expr_, other.expr_);
+
+}
+
+InitArr::~InitArr()
+{
+  delete(simpletype_);
+  delete(expr_);
+
+}
+
+void InitArr::accept(Visitor *v)
+{
+  v->visitInitArr(this);
+}
+
+InitArr *InitArr::clone() const
+{
+  return new InitArr(*this);
+}
+
+
+
+/********************   InitArrE    ********************/
+InitArrE::InitArrE(Ident p1, Expr *p2)
+{
+  ident_ = p1;
+  expr_ = p2;
+
+}
+
+InitArrE::InitArrE(const InitArrE & other)
+{
+  ident_ = other.ident_;
+  expr_ = other.expr_->clone();
+
+}
+
+InitArrE &InitArrE::operator=(const InitArrE & other)
+{
+  InitArrE tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void InitArrE::swap(InitArrE & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(expr_, other.expr_);
+
+}
+
+InitArrE::~InitArrE()
+{
+  delete(expr_);
+
+}
+
+void InitArrE::accept(Visitor *v)
+{
+  v->visitInitArrE(this);
+}
+
+InitArrE *InitArrE::clone() const
+{
+  return new InitArrE(*this);
 }
 
 
@@ -985,50 +1424,134 @@ Void *Void::clone() const
 
 
 
-/********************   Fun    ********************/
-Fun::Fun(Type *p1, ListType *p2)
+/********************   Arr    ********************/
+Arr::Arr(SimpleType *p1)
 {
-  type_ = p1;
-  listtype_ = p2;
+  simpletype_ = p1;
 
 }
 
-Fun::Fun(const Fun & other)
+Arr::Arr(const Arr & other)
 {
-  type_ = other.type_->clone();
-  listtype_ = other.listtype_->clone();
+  simpletype_ = other.simpletype_->clone();
 
 }
 
-Fun &Fun::operator=(const Fun & other)
+Arr &Arr::operator=(const Arr & other)
 {
-  Fun tmp(other);
+  Arr tmp(other);
   swap(tmp);
   return *this;
 }
 
-void Fun::swap(Fun & other)
+void Arr::swap(Arr & other)
 {
-  std::swap(type_, other.type_);
-  std::swap(listtype_, other.listtype_);
+  std::swap(simpletype_, other.simpletype_);
 
 }
 
-Fun::~Fun()
+Arr::~Arr()
 {
-  delete(type_);
-  delete(listtype_);
+  delete(simpletype_);
 
 }
 
-void Fun::accept(Visitor *v)
+void Arr::accept(Visitor *v)
 {
-  v->visitFun(this);
+  v->visitArr(this);
 }
 
-Fun *Fun::clone() const
+Arr *Arr::clone() const
 {
-  return new Fun(*this);
+  return new Arr(*this);
+}
+
+
+
+/********************   AbsAT    ********************/
+AbsAT::AbsAT(ArrType *p1)
+{
+  arrtype_ = p1;
+
+}
+
+AbsAT::AbsAT(const AbsAT & other)
+{
+  arrtype_ = other.arrtype_->clone();
+
+}
+
+AbsAT &AbsAT::operator=(const AbsAT & other)
+{
+  AbsAT tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void AbsAT::swap(AbsAT & other)
+{
+  std::swap(arrtype_, other.arrtype_);
+
+}
+
+AbsAT::~AbsAT()
+{
+  delete(arrtype_);
+
+}
+
+void AbsAT::accept(Visitor *v)
+{
+  v->visitAbsAT(this);
+}
+
+AbsAT *AbsAT::clone() const
+{
+  return new AbsAT(*this);
+}
+
+
+
+/********************   AbsST    ********************/
+AbsST::AbsST(SimpleType *p1)
+{
+  simpletype_ = p1;
+
+}
+
+AbsST::AbsST(const AbsST & other)
+{
+  simpletype_ = other.simpletype_->clone();
+
+}
+
+AbsST &AbsST::operator=(const AbsST & other)
+{
+  AbsST tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void AbsST::swap(AbsST & other)
+{
+  std::swap(simpletype_, other.simpletype_);
+
+}
+
+AbsST::~AbsST()
+{
+  delete(simpletype_);
+
+}
+
+void AbsST::accept(Visitor *v)
+{
+  v->visitAbsST(this);
+}
+
+AbsST *AbsST::clone() const
+{
+  return new AbsST(*this);
 }
 
 
@@ -1072,6 +1595,96 @@ void EVar::accept(Visitor *v)
 EVar *EVar::clone() const
 {
   return new EVar(*this);
+}
+
+
+
+/********************   EVarArr    ********************/
+EVarArr::EVarArr(Ident p1, Expr *p2)
+{
+  ident_ = p1;
+  expr_ = p2;
+
+}
+
+EVarArr::EVarArr(const EVarArr & other)
+{
+  ident_ = other.ident_;
+  expr_ = other.expr_->clone();
+
+}
+
+EVarArr &EVarArr::operator=(const EVarArr & other)
+{
+  EVarArr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void EVarArr::swap(EVarArr & other)
+{
+  std::swap(ident_, other.ident_);
+  std::swap(expr_, other.expr_);
+
+}
+
+EVarArr::~EVarArr()
+{
+  delete(expr_);
+
+}
+
+void EVarArr::accept(Visitor *v)
+{
+  v->visitEVarArr(this);
+}
+
+EVarArr *EVarArr::clone() const
+{
+  return new EVarArr(*this);
+}
+
+
+
+/********************   EAtr    ********************/
+EAtr::EAtr(Ident p1)
+{
+  ident_ = p1;
+
+}
+
+EAtr::EAtr(const EAtr & other)
+{
+  ident_ = other.ident_;
+
+}
+
+EAtr &EAtr::operator=(const EAtr & other)
+{
+  EAtr tmp(other);
+  swap(tmp);
+  return *this;
+}
+
+void EAtr::swap(EAtr & other)
+{
+  std::swap(ident_, other.ident_);
+
+}
+
+EAtr::~EAtr()
+{
+
+}
+
+void EAtr::accept(Visitor *v)
+{
+  v->visitEAtr(this);
+}
+
+EAtr *EAtr::clone() const
+{
+  return new EAtr(*this);
 }
 
 
@@ -2123,6 +2736,34 @@ void ListItem::accept(Visitor *v)
 ListItem *ListItem::clone() const
 {
   return new ListItem(*this);
+}
+
+
+/********************   ListSimpleType    ********************/
+
+void ListSimpleType::accept(Visitor *v)
+{
+  v->visitListSimpleType(this);
+}
+
+
+ListSimpleType *ListSimpleType::clone() const
+{
+  return new ListSimpleType(*this);
+}
+
+
+/********************   ListArrType    ********************/
+
+void ListArrType::accept(Visitor *v)
+{
+  v->visitListArrType(this);
+}
+
+
+ListArrType *ListArrType::clone() const
+{
+  return new ListArrType(*this);
 }
 
 

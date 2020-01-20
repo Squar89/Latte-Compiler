@@ -8,6 +8,9 @@ void Analyser::visitArg(Arg *t) {} //abstract class
 void Analyser::visitBlock(Block *t) {} //abstract class
 void Analyser::visitStmt(Stmt *t) {} //abstract class
 void Analyser::visitItem(Item *t) {} //abstract class
+void Analyser::visitItemArr(ItemArr *t) {} //abstract class
+void Analyser::visitSimpleType(SimpleType *t) {} //abstract class
+void Analyser::visitArrType(ArrType *t) {} //abstract class
 void Analyser::visitType(Type *t) {} //abstract class
 void Analyser::visitExpr(Expr *t) {} //abstract class
 void Analyser::visitAddOp(AddOp *t) {} //abstract class
@@ -48,11 +51,16 @@ void Analyser::analyseProgram(Program *p, Program *lib)
   /* Prepare all used variables and structures */
   functionsMap.clear();
   variablesMap.clear();
+  arraysMap.clear();
   currentDepth = 0;
-  std::vector< std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
+  std::vector<std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
   localRedeclVar.push_back(overshadowedVariables);
   std::vector<Ident> localVarSetup;
   localVar.push_back(localVarSetup);
+  std::vector<std::pair<Ident, std::pair<bool, unsigned long> > > overshadowedArrays;
+  localRedeclArr.push_back(overshadowedArrays);
+  std::vector<Ident> localArrSetup;
+  localArr.push_back(localArrSetup);
 
   /* Setup functionsMap with all functions definitions present in the input and those predefined */
   getFunctionsDefinitions((Prog*) lib);
@@ -186,6 +194,7 @@ void Analyser::visitFnDef(FnDef *fn_def)
   ifFullReturn = false;
 
   variablesMap.clear();
+  arraysMap.clear();
   /* Visit arguments and clear the stack from it's types */
   typesStack.push(PAUSE_CODE);
   fn_def->listarg_->accept(this);
@@ -198,7 +207,7 @@ void Analyser::visitFnDef(FnDef *fn_def)
   variablesMap.clear();
 
   /* Check if the last statement in this function was a return
-   * OR if there was and if statement present which always returns */
+   * OR if there was an if statement present which always returns */
   if (!lastStmtWasReturn && !ifFullReturn) {
     /* Void type functions don't need return, check if this is the case */
     auto it = functionsMap.find(fn_def->ident_);
@@ -232,6 +241,9 @@ void Analyser::visitAr(Ar *ar)
 
   /* These are the function's arguments so we insert them with the depth of a first block of this function */
   variablesMap.insert(std::make_pair(ar->ident_, std::make_pair(typesStack.top(), currentDepth + 1)));
+  if (typesStack.top() > AR_TYPE_OFFSET) {
+    arraysMap.insert(std::make_pair(ar->ident_, std::make_pair(true, 0)));
+  }
   //std::cout << "Exiting Ar\n";
 }
 
@@ -247,8 +259,15 @@ void Analyser::visitBlk(Blk *blk)
     fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Wrong localRedeclVar size).\n", blk->line_number);
     exit(UNEXPECTED_ERROR);
   }
-  std::vector< std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
+  std::vector<std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
   localRedeclVar.push_back(overshadowedVariables);
+
+  if (localRedeclArr.size() != currentDepth) {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Wrong localRedeclArr size).\n", blk->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+  std::vector<std::pair<Ident, std::pair<bool, unsigned long> > > overshadowedArrays;
+  localRedeclArr.push_back(overshadowedArrays);
 
   /* Prepare local variables vector for this block.
    * This will store all idents of variables declared in this block.
@@ -260,6 +279,13 @@ void Analyser::visitBlk(Blk *blk)
   std::vector<Ident> localVarSetup;
   localVar.push_back(localVarSetup);
 
+  if (localArr.size() != currentDepth) {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Wrong localArr size).\n", blk->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+  std::vector<Ident> localArrSetup;
+  localArr.push_back(localArrSetup);
+
   /* Visit the block with all statements in it */
   blk->liststmt_->accept(this);
 
@@ -269,6 +295,13 @@ void Analyser::visitBlk(Blk *blk)
     localVar[currentDepth].pop_back();
   }
   localVar.pop_back();
+
+  /* Remove all arrays declared in this block */
+  while (!localArr[currentDepth].empty()) {
+    arraysMap.erase(localArr[currentDepth].back());
+    localArr[currentDepth].pop_back();
+  }
+  localArr.pop_back();  
 
   /* Restore overshadowed variables */
   while (!localRedeclVar[currentDepth].empty()) {
@@ -280,6 +313,17 @@ void Analyser::visitBlk(Blk *blk)
     localRedeclVar[currentDepth].pop_back();
   }
   localRedeclVar.pop_back();
+
+  /* Restore overshadowed arrays */
+  while (!localRedeclArr[currentDepth].empty()) {
+    Ident ident = localRedeclArr[currentDepth].back().first;
+    bool isInitialized = localRedeclArr[currentDepth].back().second.first;
+    int arrLength = localRedeclArr[currentDepth].back().second.second;
+
+    arraysMap.insert(std::make_pair(ident, std::make_pair(isInitialized, arrLength)));
+    localRedeclArr[currentDepth].pop_back();
+  }
+  localRedeclArr.pop_back();
 
   currentDepth--;
 }
@@ -299,7 +343,7 @@ void Analyser::visitDecl(Decl *decl)
   lastStmtWasReturn = false;
 
   /* This visit should leave declaration type on the stack */
-  decl->type_->accept(this);
+  decl->simpletype_->accept(this);
 
   //std::cout << typesStack.top() << "<-type\n";
 
@@ -309,6 +353,58 @@ void Analyser::visitDecl(Decl *decl)
   /* Remove declaration type from the stack */
   typesStack.pop();
   //std::cout << typesStack.size() << "<-sizeLeave\n";
+}
+
+void Analyser::visitDeclArr(DeclArr *decl_arr)
+{
+  lastStmtWasReturn = false;
+
+  /* This visit should leave declaration type on the stack */
+  decl_arr->arrtype_->accept(this);
+
+  decl_arr->itemarr_->accept(this);
+
+  /* Remove declaration type from the stack */
+  typesStack.pop();
+}
+
+void Analyser::visitInitArrSt(InitArrSt *init_arr_st)
+{
+  lastStmtWasReturn = false;
+
+  /* This is a situation when we want to initialize previously declared, but not initialized array */
+  visitIdent(init_arr_st->ident_);
+
+  /* Check if array with this ident is visible */
+  if (auto arrIt = arraysMap.find(init_arr_st->ident_); arrIt != arraysMap.end()) {
+    if (arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Trying to initialize array that was initialized before.\n", init_arr_st->line_number);
+      exit(VAR_REDECLARATION);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Array wasn't declared before, declare your array first.\n", init_arr_st->line_number);
+    exit(VAR_NOT_DECLARED);
+  }
+  
+  init_arr_st->simpletype_->accept(this);
+  /* Check if types of declaration and this init match */
+  if (typesStack.top() != variablesMap.find(init_arr_st->ident_)->second.first - AR_TYPE_OFFSET) {
+    fprintf(stderr, "ERROR\nLine %d: declaration and init types do not match.\n", init_arr_st->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  init_arr_st->expr_->accept(this);
+  /* Check if length expression type is an int */
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d: expression specifying array's length must be an int.\n", init_arr_st->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  /* Set this array to initialized and set it's length */
+  arraysMap.find(init_arr_st->ident_)->second = std::make_pair(true, 0);//placeholder length
 }
 
 void Analyser::visitAss(Ass *ass)
@@ -335,6 +431,47 @@ void Analyser::visitAss(Ass *ass)
   typesStack.pop();
 }
 
+void Analyser::visitAssArr(AssArr *ass_arr)
+{
+  lastStmtWasReturn = false;
+  visitIdent(ass_arr->ident_);
+
+  /* Check if this array was declared and initialized in current environment */
+  if (auto arrIt = arraysMap.find(ass_arr->ident_); arrIt != arraysMap.end()) {
+    if (!arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", ass_arr->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", ass_arr->line_number, ass_arr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Check if expression specifying index is of type int */
+  ass_arr->expr_1->accept(this);
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Index specifier must be of type int.\n", ass_arr->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  /* Check if expression's type match the array's type */
+  ass_arr->expr_2->accept(this);
+  if (auto it = variablesMap.find(ass_arr->ident_); it != variablesMap.end()) {
+    if (it->second.first - AR_TYPE_OFFSET != typesStack.top()) {
+      fprintf(stderr, "ERROR\nLine %d. Assigned value type is different than array's type.\n", ass_arr->line_number);
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Data structures mishap).\n", ass_arr->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+  typesStack.pop();
+
+}
+
 void Analyser::visitIncr(Incr *incr)
 {
   //std::cout << "Incr\n";
@@ -356,6 +493,44 @@ void Analyser::visitIncr(Incr *incr)
   }
 }
 
+void Analyser::visitIncrArr(IncrArr *incr_arr)
+{
+  lastStmtWasReturn = false;
+  visitIdent(incr_arr->ident_);
+  
+  /* Check if array exists and was initialized */
+  if (auto arrIt = arraysMap.find(incr_arr->ident_); arrIt != arraysMap.end()) {
+    if (!arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", incr_arr->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", incr_arr->line_number, incr_arr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Check if array is of type int */
+  if (auto it = variablesMap.find(incr_arr->ident_); it != variablesMap.end()) {
+    if (it->second.first - AR_TYPE_OFFSET != INT_CODE) {
+      fprintf(stderr, "ERROR\nLine %d. Variable must be of type int to be incremented.\n", incr_arr->line_number);
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Data structures mishap).\n", incr_arr->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+
+  /* Check if index expression is of type int */
+  incr_arr->expr_->accept(this);
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Index specifier must be of type int.\n", incr_arr->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+}
+
 void Analyser::visitDecr(Decr *decr)
 {
   //std::cout << "Decr\n";
@@ -375,6 +550,44 @@ void Analyser::visitDecr(Decr *decr)
             decr->line_number, decr->ident_.c_str());
     exit(VAR_NOT_DECLARED);
   }
+}
+
+void Analyser::visitDecrArr(DecrArr *decr_arr)
+{
+  lastStmtWasReturn = false;
+  visitIdent(decr_arr->ident_);
+
+  /* Check if array exists and was initialized */
+  if (auto arrIt = arraysMap.find(decr_arr->ident_); arrIt != arraysMap.end()) {
+    if (!arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", decr_arr->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", decr_arr->line_number, decr_arr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Check if array is of type int */
+  if (auto it = variablesMap.find(decr_arr->ident_); it != variablesMap.end()) {
+    if (it->second.first - AR_TYPE_OFFSET != INT_CODE) {
+      fprintf(stderr, "ERROR\nLine %d. Variable must be of type int to be incremented.\n", decr_arr->line_number);
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Data structures mishap).\n", decr_arr->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+
+  /* Check if index expression is of type int */
+  decr_arr->expr_->accept(this);
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Index specifier must be of type int.\n", decr_arr->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
 }
 
 void Analyser::visitRet(Ret *ret)
@@ -494,6 +707,79 @@ void Analyser::visitWhile(While *while_)
   while_->stmt_->accept(this);
 }
 
+void Analyser::visitForEach(ForEach *for_each)
+{
+  lastStmtWasReturn = false;
+  bool overshadow = false;
+  bool overshadowWasArray = false;
+  std::pair<int, unsigned long> shadowedVar;
+  std::pair<bool, unsigned long> shadowedArr;
+
+  for_each->simpletype_->accept(this);
+  int varType = typesStack.top();
+  typesStack.pop();
+
+  visitIdent(for_each->ident_1);
+  /* Check if this variable was declared before */
+  if (auto it = variablesMap.find(for_each->ident_1); it != variablesMap.end()) {
+    /* Check if this variable was declared in the current block */
+    if (it->second.second == currentDepth) {
+      fprintf(stderr, "ERROR\nLine %d: variable %s was declared earlier.\n", for_each->line_number, for_each->ident_1.c_str());
+      exit(VAR_REDECLARATION);
+    }
+    /* Else add variable to the overshadowed vector and remove it from variablesMap */
+    else {
+      overshadow = true;
+      shadowedVar = std::make_pair(it->second.first, it->second.second);
+      variablesMap.erase(for_each->ident_1);
+
+      /* Check if previous value was an array and store it's info if so */
+      if (auto arrIt = arraysMap.find(for_each->ident_1); arrIt != arraysMap.end()) {
+        overshadowWasArray = true;
+        shadowedArr = std::make_pair(arrIt->second.first, arrIt->second.second);
+        arraysMap.erase(for_each->ident_1);
+      }
+    }
+  }
+
+  variablesMap.insert(std::make_pair(for_each->ident_1, std::make_pair(varType, currentDepth)));
+
+  visitIdent(for_each->ident_2);
+  /* Check if this array exists and was initialized */
+  if (auto arrIt = arraysMap.find(for_each->ident_2); arrIt != arraysMap.end()) {
+    if (!arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", for_each->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", for_each->line_number, for_each->ident_2.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Check if varType matches the array's type */
+  if (auto it = variablesMap.find(for_each->ident_2); it != variablesMap.end()) {
+    if (it->second.first - AR_TYPE_OFFSET != varType) {
+      fprintf(stderr, "ERROR\nLine %d. Assigned value type is different than array's type.\n", for_each->line_number);
+      exit(TYPE_ERROR);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Data structures mishap).\n", for_each->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+
+  for_each->stmt_->accept(this);
+
+  variablesMap.erase(for_each->ident_1);
+  if (overshadow) {
+    variablesMap.insert(std::make_pair(for_each->ident_1, shadowedVar));
+    if (overshadowWasArray) {
+      arraysMap.insert(std::make_pair(for_each->ident_1, shadowedArr));
+    }
+  }
+}
+
 void Analyser::visitSExp(SExp *s_exp)
 {
   //std::cout << "SExp\n";
@@ -504,7 +790,7 @@ void Analyser::visitSExp(SExp *s_exp)
   typesStack.pop();
 }
 
-void Analyser::declareVariable(Ident ident, int lineNumber) {
+void Analyser::declareVariable(Ident ident, int lineNumber, bool isArray, bool arrayInitialized) {
   //std::cout << "declareVariable\n";
   /* Check if this variable was declared before */
   if (auto it = variablesMap.find(ident); it != variablesMap.end()) {
@@ -520,6 +806,13 @@ void Analyser::declareVariable(Ident ident, int lineNumber) {
 
       localRedeclVar[currentDepth].push_back(std::make_pair(ident, std::make_pair(typeCode, declDepth)));
       variablesMap.erase(ident);
+      /* Check if previous value was an array and store it's info if so */
+      if (auto arrIt = arraysMap.find(ident); arrIt != arraysMap.end()) {
+        bool wasInitialized = arrIt->second.first;
+        unsigned long arrLength = arrIt->second.second;
+        localRedeclArr[currentDepth].push_back(std::make_pair(ident, std::make_pair(wasInitialized, arrLength)));
+        arraysMap.erase(ident);
+      }
     }
   }
 
@@ -528,13 +821,19 @@ void Analyser::declareVariable(Ident ident, int lineNumber) {
 
   /* Insert this ident to locally declared variables vector */
   localVar[currentDepth].push_back(ident);
+
+  /* Insert this into arraysMap if it is an array */
+  if(isArray) {
+    arraysMap.insert(std::make_pair(ident, std::make_pair(arrayInitialized, 0)));//placeholder length
+    localArr[currentDepth].push_back(ident);
+  }
 }
 
 void Analyser::visitNoInit(NoInit *no_init)
 {
   //std::cout << "NoInit\n";
   visitIdent(no_init->ident_);
-  declareVariable(no_init->ident_, no_init->line_number);
+  declareVariable(no_init->ident_, no_init->line_number, false, false);
 }
 
 void Analyser::visitInit(Init *init)
@@ -554,7 +853,58 @@ void Analyser::visitInit(Init *init)
     exit(TYPE_ERROR);
   }
 
-  declareVariable(init->ident_, init->line_number);
+  declareVariable(init->ident_, init->line_number, false, false);
+}
+
+void Analyser::visitNoInitArr(NoInitArr *no_init_arr)
+{
+  visitIdent(no_init_arr->ident_);
+  declareVariable(no_init_arr->ident_, no_init_arr->line_number, true, false);
+}
+
+void Analyser::visitInitArr(InitArr *init_arr)
+{
+  visitIdent(init_arr->ident_);
+  init_arr->simpletype_->accept(this);
+  
+  /* Save type used with init and restore declaration type as top of stack */
+  int initType = typesStack.top();
+  typesStack.pop();
+
+  /* Check if types of declaration and init match */
+  if (typesStack.top() - AR_TYPE_OFFSET != initType) {
+    fprintf(stderr, "ERROR\nLine %d: declaration and init types do not match.\n", init_arr->line_number);
+    fprintf(stderr, "Declaration type: %d, init type: %d\n", typesStack.top(), initType);
+    exit(TYPE_ERROR);
+  }
+
+  /* Check if length expression type is an int */
+  init_arr->expr_->accept(this);
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d: expression specifying array's length must be an int.\n", init_arr->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  declareVariable(init_arr->ident_, init_arr->line_number, true, true);
+}
+
+void Analyser::visitInitArrE(InitArrE *init_arr_e)
+{
+  visitIdent(init_arr_e->ident_);
+  init_arr_e->expr_->accept(this);
+
+  /* Save expression type and restore declaration type as top of stack */
+  int exprType = typesStack.top();
+  typesStack.pop();
+
+  /* Check if types of declaration and assignment match */
+  if (typesStack.top() != exprType) {
+    fprintf(stderr, "ERROR\nLine %d: declaration and assignment types do not match.\n", init_arr_e->line_number);
+    exit(TYPE_ERROR);
+  }
+
+  declareVariable(init_arr_e->ident_, init_arr_e->line_number, true, true);
 }
 
 void Analyser::visitInt(Int *int_)
@@ -581,14 +931,20 @@ void Analyser::visitVoid(Void *void_)
   typesStack.push(VOID_CODE);
 }
 
-void Analyser::visitFun(Fun *fun)
+void Analyser::visitArr(Arr *arr)
 {
-  //std::cout << "visitFun\n";
-  fprintf(stderr, "Hello there, are you lost?\n"); /* TODO */
+  arr->simpletype_->accept(this);
+  typesStack.top() += AR_TYPE_OFFSET;
+}
 
-  fun->type_->accept(this);
-  fun->listtype_->accept(this);
-  /* TODO if I leave this function here, the stack should be cleared properly */
+void Analyser::visitAbsAT(AbsAT *abs_at)
+{
+  abs_at->arrtype_->accept(this);
+}
+
+void Analyser::visitAbsST(AbsST *abs_st)
+{
+  abs_st->simpletype_->accept(this);
 }
 
 void Analyser::visitEVar(EVar *e_var)
@@ -602,6 +958,60 @@ void Analyser::visitEVar(EVar *e_var)
   }
   else {
     fprintf(stderr, "ERROR\nLine %d. Unknown variable used \"%s\".\n", e_var->line_number, e_var->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+}
+
+void Analyser::visitEVarArr(EVarArr *e_var_arr)
+{
+  visitIdent(e_var_arr->ident_);
+
+  /* Check if this array was declared and initialized in current environment */
+  if (auto arrIt = arraysMap.find(e_var_arr->ident_); arrIt != arraysMap.end()) {
+    if (!arrIt->second.first) {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", e_var_arr->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", e_var_arr->line_number, e_var_arr->ident_.c_str());
+    exit(VAR_NOT_DECLARED);
+  }
+
+  /* Check if expression specifying index is of type int */
+  e_var_arr->expr_->accept(this);
+  if (typesStack.top() != INT_CODE) {
+    fprintf(stderr, "ERROR\nLine %d. Index specifier must be of type int.\n", e_var_arr->line_number);
+    exit(TYPE_ERROR);
+  }
+  typesStack.pop();
+
+  /* Push type of array's elements onto stack */
+  if (auto it = variablesMap.find(e_var_arr->ident_); it != variablesMap.end()) {
+    typesStack.push(it->second.first - AR_TYPE_OFFSET);
+  }
+  else {
+    fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Data structures mishap).\n", e_var_arr->line_number);
+    exit(UNEXPECTED_ERROR);
+  }
+}
+
+void Analyser::visitEAtr(EAtr *e_atr)
+{
+  visitIdent(e_atr->ident_);
+
+  /* Check if such array exists and if it was initialized */
+  if (auto arrIt = arraysMap.find(e_atr->ident_); arrIt != arraysMap.end()) {
+    if (arrIt->second.first) {
+      typesStack.push(INT_CODE);
+    }
+    else {
+      fprintf(stderr, "ERROR\nLine %d. Array was not initialized.\n", e_atr->line_number);
+      exit(AR_NOT_INITIALIZED);
+    }
+  }
+  else {
+    fprintf(stderr, "ERROR\nLine %d. Couldn't find array with ident \"%s\".\n", e_atr->line_number, e_atr->ident_.c_str());
     exit(VAR_NOT_DECLARED);
   }
 }
@@ -846,6 +1256,22 @@ void Analyser::visitListItem(ListItem *list_item)
 {
   //std::cout << "visitListItem\n";
   for (ListItem::iterator i = list_item->begin() ; i != list_item->end() ; ++i)
+  {
+    (*i)->accept(this);
+  }
+}
+
+void Analyser::visitListSimpleType(ListSimpleType *list_simple_type)
+{
+  for (ListSimpleType::iterator i = list_simple_type->begin() ; i != list_simple_type->end() ; ++i)
+  {
+    (*i)->accept(this);
+  }
+}
+
+void Analyser::visitListArrType(ListArrType *list_arr_type)
+{
+  for (ListArrType::iterator i = list_arr_type->begin() ; i != list_arr_type->end() ; ++i)
   {
     (*i)->accept(this);
   }

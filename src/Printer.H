@@ -44,28 +44,46 @@ class PrintAbsyn : public Visitor
   void visitEmpty(Empty *p);
   void visitBStmt(BStmt *p);
   void visitDecl(Decl *p);
+  void visitDeclArr(DeclArr *p);
+  void visitInitArrSt(InitArrSt *p);
   void visitAss(Ass *p);
+  void visitAssArr(AssArr *p);
   void visitIncr(Incr *p);
+  void visitIncrArr(IncrArr *p);
   void visitDecr(Decr *p);
+  void visitDecrArr(DecrArr *p);
   void visitRet(Ret *p);
   void visitVRet(VRet *p);
   void visitCond(Cond *p);
   void visitCondElse(CondElse *p);
   void visitWhile(While *p);
+  void visitForEach(ForEach *p);
   void visitSExp(SExp *p);
   void visitItem(Item *p); /* abstract class */
   void visitNoInit(NoInit *p);
   void visitInit(Init *p);
+  void visitItemArr(ItemArr *p); /* abstract class */
+  void visitNoInitArr(NoInitArr *p);
+  void visitInitArr(InitArr *p);
+  void visitInitArrE(InitArrE *p);
   void visitListItem(ListItem *p);
-  void visitType(Type *p); /* abstract class */
+  void visitSimpleType(SimpleType *p); /* abstract class */
   void visitInt(Int *p);
   void visitStr(Str *p);
   void visitBool(Bool *p);
   void visitVoid(Void *p);
-  void visitFun(Fun *p);
+  void visitArrType(ArrType *p); /* abstract class */
+  void visitArr(Arr *p);
+  void visitType(Type *p); /* abstract class */
+  void visitAbsAT(AbsAT *p);
+  void visitAbsST(AbsST *p);
+  void visitListSimpleType(ListSimpleType *p);
+  void visitListArrType(ListArrType *p);
   void visitListType(ListType *p);
   void visitExpr(Expr *p); /* abstract class */
   void visitEVar(EVar *p);
+  void visitEVarArr(EVarArr *p);
+  void visitEAtr(EAtr *p);
   void visitELitInt(ELitInt *p);
   void visitELitTrue(ELitTrue *p);
   void visitELitFalse(ELitFalse *p);
@@ -190,28 +208,46 @@ class ShowAbsyn : public Visitor
   void visitEmpty(Empty *p);
   void visitBStmt(BStmt *p);
   void visitDecl(Decl *p);
+  void visitDeclArr(DeclArr *p);
+  void visitInitArrSt(InitArrSt *p);
   void visitAss(Ass *p);
+  void visitAssArr(AssArr *p);
   void visitIncr(Incr *p);
+  void visitIncrArr(IncrArr *p);
   void visitDecr(Decr *p);
+  void visitDecrArr(DecrArr *p);
   void visitRet(Ret *p);
   void visitVRet(VRet *p);
   void visitCond(Cond *p);
   void visitCondElse(CondElse *p);
   void visitWhile(While *p);
+  void visitForEach(ForEach *p);
   void visitSExp(SExp *p);
   void visitItem(Item *p); /* abstract class */
   void visitNoInit(NoInit *p);
   void visitInit(Init *p);
+  void visitItemArr(ItemArr *p); /* abstract class */
+  void visitNoInitArr(NoInitArr *p);
+  void visitInitArr(InitArr *p);
+  void visitInitArrE(InitArrE *p);
   void visitListItem(ListItem *p);
-  void visitType(Type *p); /* abstract class */
+  void visitSimpleType(SimpleType *p); /* abstract class */
   void visitInt(Int *p);
   void visitStr(Str *p);
   void visitBool(Bool *p);
   void visitVoid(Void *p);
-  void visitFun(Fun *p);
+  void visitArrType(ArrType *p); /* abstract class */
+  void visitArr(Arr *p);
+  void visitType(Type *p); /* abstract class */
+  void visitAbsAT(AbsAT *p);
+  void visitAbsST(AbsST *p);
+  void visitListSimpleType(ListSimpleType *p);
+  void visitListArrType(ListArrType *p);
   void visitListType(ListType *p);
   void visitExpr(Expr *p); /* abstract class */
   void visitEVar(EVar *p);
+  void visitEVarArr(EVarArr *p);
+  void visitEAtr(EAtr *p);
   void visitELitInt(ELitInt *p);
   void visitELitTrue(ELitTrue *p);
   void visitELitFalse(ELitFalse *p);

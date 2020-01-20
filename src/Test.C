@@ -26,7 +26,7 @@ int main(int argc, char ** argv) {
   FILE *input, *libFun;
   Analyser *analyser;
   Compiler *compiler;
-  int quiet = 1;
+  int quiet = 0;
   char *filename = NULL;
   std::string output;
 
@@ -67,7 +67,7 @@ int main(int argc, char ** argv) {
     
     compiler = new Compiler();
     //printf("\n\nCompiler result:\n");
-    std::cout << compiler->compile(parse_tree, parsed_lib);
+    //std::cout << compiler->compile(parse_tree, parsed_lib);
     
     //printf("\nParse Succesful!\n");
     if (!quiet) {

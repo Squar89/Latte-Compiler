@@ -8,6 +8,9 @@ void Compiler::visitArg(Arg *t) {} //abstract class
 void Compiler::visitBlock(Block *t) {} //abstract class
 void Compiler::visitStmt(Stmt *t) {} //abstract class
 void Compiler::visitItem(Item *t) {} //abstract class
+void Compiler::visitItemArr(ItemArr *t) {} //abstract class
+void Compiler::visitSimpleType(SimpleType *t) {} //abstract class
+void Compiler::visitArrType(ArrType *t) {} //abstract class
 void Compiler::visitType(Type *t) {} //abstract class
 void Compiler::visitExpr(Expr *t) {} //abstract class
 void Compiler::visitAddOp(AddOp *t) {} //abstract class
@@ -213,11 +216,30 @@ void Compiler::visitBStmt(BStmt *b_stmt)
 void Compiler::visitDecl(Decl *decl)
 {
   //std::cout << "visitDecl" << std::endl;
-  decl->type_->accept(this);
+  decl->simpletype_->accept(this);
   decl->listitem_->accept(this);
 
   typesStack.pop();
   //std::cout << "Exiting visitDecl" << std::endl;
+}
+
+void Compiler::visitDeclArr(DeclArr *decl_arr)
+{
+  /* Code For DeclArr Goes Here */
+
+  decl_arr->arrtype_->accept(this);
+  decl_arr->itemarr_->accept(this);
+//TODO
+}
+
+void Compiler::visitInitArrSt(InitArrSt *init_arr_st)
+{
+  /* Code For InitArrSt Goes Here */
+
+  visitIdent(init_arr_st->ident_);
+  init_arr_st->simpletype_->accept(this);
+  init_arr_st->expr_->accept(this);
+//TODO
 }
 
 void Compiler::visitAss(Ass *ass)
@@ -259,6 +281,16 @@ void Compiler::visitAss(Ass *ass)
   //std::cout << "Exiting visitAss" << std::endl;
 }
 
+void Compiler::visitAssArr(AssArr *ass_arr)
+{
+  /* Code For AssArr Goes Here */
+
+  visitIdent(ass_arr->ident_);
+  ass_arr->expr_1->accept(this);
+  ass_arr->expr_2->accept(this);
+  //TODO
+}
+
 void Compiler::visitIncr(Incr *incr)
 {
   //std::cout << "visitIncr" << std::endl;
@@ -271,6 +303,15 @@ void Compiler::visitIncr(Incr *incr)
   //std::cout << "Exiting visitIncr" << std::endl;
 }
 
+void Compiler::visitIncrArr(IncrArr *incr_arr)
+{
+  /* Code For IncrArr Goes Here */
+
+  visitIdent(incr_arr->ident_);
+  incr_arr->expr_->accept(this);
+//TODO
+}
+
 void Compiler::visitDecr(Decr *decr)
 {
   //std::cout << "visitDecr" << std::endl;
@@ -281,6 +322,15 @@ void Compiler::visitDecr(Decr *decr)
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp)\n");
   //std::cout << "Exiting visitDecr" << std::endl;
+}
+
+void Compiler::visitDecrArr(DecrArr *decr_arr)
+{
+  /* Code For DecrArr Goes Here */
+
+  visitIdent(decr_arr->ident_);
+  decr_arr->expr_->accept(this);
+//TODO
 }
 
 void Compiler::visitRet(Ret *ret)
@@ -416,6 +466,17 @@ void Compiler::visitWhile(While *while_)
   //std::cout << "Exiting visitWhile" << std::endl;
 }
 
+void Compiler::visitForEach(ForEach *for_each)
+{
+  /* Code For ForEach Goes Here */
+
+  for_each->simpletype_->accept(this);
+  visitIdent(for_each->ident_1);
+  visitIdent(for_each->ident_2);
+  for_each->stmt_->accept(this);
+//TODO
+}
+
 void Compiler::visitSExp(SExp *s_exp)
 {
   //std::cout << "visitSExp" << std::endl;
@@ -496,6 +557,33 @@ void Compiler::visitInit(Init *init)
   //std::cout << "Exiting visitInit" << std::endl;
 }
 
+void Compiler::visitNoInitArr(NoInitArr *no_init_arr)
+{
+  /* Code For NoInitArr Goes Here */
+
+  visitIdent(no_init_arr->ident_);
+//TODO
+}
+
+void Compiler::visitInitArr(InitArr *init_arr)
+{
+  /* Code For InitArr Goes Here */
+
+  visitIdent(init_arr->ident_);
+  init_arr->simpletype_->accept(this);
+  init_arr->expr_->accept(this);
+//TODO
+}
+
+void Compiler::visitInitArrE(InitArrE *init_arr_e)
+{
+  /* Code For InitArrE Goes Here */
+
+  visitIdent(init_arr_e->ident_);
+  init_arr_e->expr_->accept(this);
+//TODO
+}
+
 void Compiler::visitInt(Int *int_)
 {
   //std::cout << "visitInt" << std::endl;
@@ -524,13 +612,28 @@ void Compiler::visitVoid(Void *void_)
   //std::cout << "Exiting visitVoid" << std::endl;
 }
 
-void Compiler::visitFun(Fun *fun)
+void Compiler::visitArr(Arr *arr)
 {
-  //std::cout << "visitFun" << std::endl;
-  fun->type_->accept(this);
-  //TODO remove this?
-  fun->listtype_->accept(this);
-  //std::cout << "Exiting visitFun" << std::endl;
+  /* Code For Arr Goes Here */
+
+  arr->simpletype_->accept(this);
+//TODO
+}
+
+void Compiler::visitAbsAT(AbsAT *abs_at)
+{
+  /* Code For AbsAT Goes Here */
+
+  abs_at->arrtype_->accept(this);
+//TODO
+}
+
+void Compiler::visitAbsST(AbsST *abs_st)
+{
+  /* Code For AbsST Goes Here */
+
+  abs_st->simpletype_->accept(this);
+//TODO
 }
 
 void Compiler::visitEVar(EVar *e_var)
@@ -544,6 +647,23 @@ void Compiler::visitEVar(EVar *e_var)
   bufAppend(std::to_string(offset));
   bufAppend("(%rbp), %rax\n");
   //std::cout << "Exiting visitEVar" << std::endl;
+}
+
+void Compiler::visitEVarArr(EVarArr *e_var_arr)
+{
+  /* Code For EVarArr Goes Here */
+
+  visitIdent(e_var_arr->ident_);
+  e_var_arr->expr_->accept(this);
+//TODO
+}
+
+void Compiler::visitEAtr(EAtr *e_atr)
+{
+  /* Code For EAtr Goes Here */
+
+  visitIdent(e_atr->ident_);
+//TODO
 }
 
 void Compiler::visitELitInt(ELitInt *e_lit_int)
@@ -970,6 +1090,24 @@ void Compiler::visitListItem(ListItem *list_item)
     (*i)->accept(this);
   }
   //std::cout << "Exiting visitListItem" << std::endl;
+}
+
+void Compiler::visitListSimpleType(ListSimpleType *list_simple_type)
+{
+  for (ListSimpleType::iterator i = list_simple_type->begin() ; i != list_simple_type->end() ; ++i)
+  {
+    (*i)->accept(this);
+  }
+  //TODO
+}
+
+void Compiler::visitListArrType(ListArrType *list_arr_type)
+{
+  for (ListArrType::iterator i = list_arr_type->begin() ; i != list_arr_type->end() ; ++i)
+  {
+    (*i)->accept(this);
+  }
+  //TODO
 }
 
 void Compiler::visitListType(ListType *list_type)
