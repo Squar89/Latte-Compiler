@@ -30,6 +30,9 @@ char* Compiler::compile(Program *p, Program *lib) {
   functionLabelCounter = 0;
   stringConcatLabelCounter = 0;
   skipFreeCounter = 0;
+  inBoundsCounter = 0;
+  checkArraySizeCounter = 0;
+  forEachCounter = 0;
   functionBlock = false;
   bufAppend(header);
 
@@ -225,21 +228,50 @@ void Compiler::visitDecl(Decl *decl)
 
 void Compiler::visitDeclArr(DeclArr *decl_arr)
 {
-  /* Code For DeclArr Goes Here */
-
   decl_arr->arrtype_->accept(this);
   decl_arr->itemarr_->accept(this);
-//TODO
+
+  typesStack.pop();
+}
+
+/* Array's length is in $rax */
+void Compiler::mallocArray() {
+  /* Check if array's length is a positive number */
+  bufAppend("cmpq $0, %rax\n");
+  bufAppend("jg checkArraySize");
+  bufAppend(std::to_string(checkArraySizeCounter));
+  bufAppend("\n");
+  alignStack(0);
+  bufAppend("call _exit\n");
+  bufAppend("checkArraySize");
+  bufAppend(std::to_string(checkArraySizeCounter++));
+  bufAppend(":\n");
+  bufAppend("pushq %rax\n");//push array's length onto stack
+  bufAppend("imulq $8, %rax\n");//each index should have 8 bytes of space
+  bufAppend("addq $8, %rax\n");//add 8 additional bytes for storing array length 8 bytes before first element
+  bufAppend("movq %rax, %rdi\n");
+  alignStack(0);
+  bufAppend("call _malloc\n");
+  removePadding();
+  bufAppend("popq %rdx\n");
+  bufAppend("movq %rdx, (%rax)\n");
+  bufAppend("addq $8, %rax\n");
 }
 
 void Compiler::visitInitArrSt(InitArrSt *init_arr_st)
 {
-  /* Code For InitArrSt Goes Here */
-
   visitIdent(init_arr_st->ident_);
   init_arr_st->simpletype_->accept(this);
+  typesStack.pop();
+  
   init_arr_st->expr_->accept(this);
-//TODO
+  typesStack.pop();
+  
+  mallocArray();
+  int offset = variablesMap.find(init_arr_st->ident_)->second;
+  bufAppend("movq %rax, ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp)\n");
 }
 
 void Compiler::visitAss(Ass *ass)
@@ -283,12 +315,24 @@ void Compiler::visitAss(Ass *ass)
 
 void Compiler::visitAssArr(AssArr *ass_arr)
 {
-  /* Code For AssArr Goes Here */
-
   visitIdent(ass_arr->ident_);
   ass_arr->expr_1->accept(this);
+  typesStack.pop();
+
+  int offset = variablesMap.find(ass_arr->ident_)->second;
+  bufAppend("movq ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp), %rbx\n");
+  checkInBounds();
+  bufAppend("imulq $8, %rax\n");
+  bufAppend("addq %rax, %rbx\n");
+  bufAppend("pushq %rbx\n");
+  
   ass_arr->expr_2->accept(this);
-  //TODO
+  typesStack.pop();
+
+  bufAppend("popq %rbx\n");
+  bufAppend("movq %rax, (%rbx)\n");
 }
 
 void Compiler::visitIncr(Incr *incr)
@@ -303,13 +347,33 @@ void Compiler::visitIncr(Incr *incr)
   //std::cout << "Exiting visitIncr" << std::endl;
 }
 
+/* Array's address is in %rbx, index to test is in %rax */
+void Compiler::checkInBounds() {
+  bufAppend("cmpq %rax, -8(%rbx)\n");
+  bufAppend("jg inBoundsCheckLabel");
+  bufAppend(std::to_string(inBoundsCounter));
+  bufAppend("\n");
+  alignStack(0);
+  bufAppend("call _exit\n");
+  bufAppend("inBoundsCheckLabel");
+  bufAppend(std::to_string(inBoundsCounter++));
+  bufAppend(":\n");
+}
+
 void Compiler::visitIncrArr(IncrArr *incr_arr)
 {
-  /* Code For IncrArr Goes Here */
-
   visitIdent(incr_arr->ident_);
   incr_arr->expr_->accept(this);
-//TODO
+  typesStack.pop();
+
+  int offset = variablesMap.find(incr_arr->ident_)->second;
+  bufAppend("movq ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp), %rbx\n");
+  checkInBounds();
+  bufAppend("imulq $8, %rax\n");
+  bufAppend("addq %rax, %rbx\n");
+  bufAppend("incq (%rbx)\n");
 }
 
 void Compiler::visitDecr(Decr *decr)
@@ -326,11 +390,18 @@ void Compiler::visitDecr(Decr *decr)
 
 void Compiler::visitDecrArr(DecrArr *decr_arr)
 {
-  /* Code For DecrArr Goes Here */
-
   visitIdent(decr_arr->ident_);
   decr_arr->expr_->accept(this);
-//TODO
+  typesStack.pop();
+
+  int offset = variablesMap.find(decr_arr->ident_)->second;
+  bufAppend("movq ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp), %rbx\n");
+  checkInBounds();
+  bufAppend("imulq $8, %rax\n");
+  bufAppend("addq %rax, %rbx\n");
+  bufAppend("decq (%rbx)\n");
 }
 
 void Compiler::visitRet(Ret *ret)
@@ -468,13 +539,60 @@ void Compiler::visitWhile(While *while_)
 
 void Compiler::visitForEach(ForEach *for_each)
 {
-  /* Code For ForEach Goes Here */
+  int localforEachCounter = forEachCounter++;
+  int localStackCounter = stackCounter;
+  std::unordered_map<Ident, int> variablesMapCopy(variablesMap);
+  std::unordered_map<Ident, int> typesMapCopy(typesMap);
 
   for_each->simpletype_->accept(this);
   visitIdent(for_each->ident_1);
   visitIdent(for_each->ident_2);
+
+  declareVariable(for_each->ident_1);
+  typesStack.pop();
+
+  stackCounter += 2;//storing current array pointer and number of element's left
+
+  /* Load array address into %rax and array's length into %rdi */
+  int offsetArr = variablesMap.find(for_each->ident_2)->second;
+  int offsetVar = variablesMap.find(for_each->ident_1)->second;
+  bufAppend("movq ");
+  bufAppend(std::to_string(offsetArr));
+  bufAppend("(%rbp), %rax\n");
+  bufAppend("movq -8(%rax), %rdi\n");
+
+  /* Start loop */
+  bufAppend("forEachLabel");
+  bufAppend(std::to_string(localforEachCounter));
+  bufAppend(":\n");
+  bufAppend("movq (%rax), %rbx\n");
+  bufAppend("movq %rbx, ");
+  bufAppend(std::to_string(offsetVar));
+  bufAppend("(%rbp)\n");
+  bufAppend("pushq %rax\n");
+  bufAppend("pushq %rdi\n");
   for_each->stmt_->accept(this);
-//TODO
+
+  bufAppend("popq %rdi\n");
+  bufAppend("popq %rax\n");
+  bufAppend("addq $8, %rax\n");
+  bufAppend("decq %rdi\n");
+  bufAppend("cmpq $0, %rdi\n");
+  bufAppend("jne forEachLabel");
+  bufAppend(std::to_string(localforEachCounter));
+  bufAppend("\n");
+
+  stackCounter -= 2;//registers stored on stack were already popped
+  if (stackCounter - localStackCounter > 0) {
+    int bytesToDeallocate = 8 * (stackCounter - localStackCounter);
+    bufAppend("addq $");
+    bufAppend(std::to_string(bytesToDeallocate));
+    bufAppend(", %rsp\n");
+  }
+  stackCounter = localStackCounter;
+
+  variablesMap = variablesMapCopy;
+  typesMap = typesMapCopy;
 }
 
 void Compiler::visitSExp(SExp *s_exp)
@@ -559,29 +677,30 @@ void Compiler::visitInit(Init *init)
 
 void Compiler::visitNoInitArr(NoInitArr *no_init_arr)
 {
-  /* Code For NoInitArr Goes Here */
-
   visitIdent(no_init_arr->ident_);
-//TODO
+  declareVariable(no_init_arr->ident_);
 }
 
 void Compiler::visitInitArr(InitArr *init_arr)
 {
-  /* Code For InitArr Goes Here */
-
   visitIdent(init_arr->ident_);
   init_arr->simpletype_->accept(this);
+  typesStack.pop();
+
   init_arr->expr_->accept(this);
-//TODO
+  typesStack.pop();
+  
+  mallocArray();
+  declareVariable(init_arr->ident_);
 }
 
 void Compiler::visitInitArrE(InitArrE *init_arr_e)
 {
-  /* Code For InitArrE Goes Here */
-
   visitIdent(init_arr_e->ident_);
   init_arr_e->expr_->accept(this);
-//TODO
+  typesStack.pop();
+
+  declareVariable(init_arr_e->ident_);
 }
 
 void Compiler::visitInt(Int *int_)
@@ -614,26 +733,18 @@ void Compiler::visitVoid(Void *void_)
 
 void Compiler::visitArr(Arr *arr)
 {
-  /* Code For Arr Goes Here */
-
   arr->simpletype_->accept(this);
-//TODO
+  typesStack.top() += AR_TYPE_OFFSET;
 }
 
 void Compiler::visitAbsAT(AbsAT *abs_at)
 {
-  /* Code For AbsAT Goes Here */
-
   abs_at->arrtype_->accept(this);
-//TODO
 }
 
 void Compiler::visitAbsST(AbsST *abs_st)
 {
-  /* Code For AbsST Goes Here */
-
   abs_st->simpletype_->accept(this);
-//TODO
 }
 
 void Compiler::visitEVar(EVar *e_var)
@@ -651,19 +762,33 @@ void Compiler::visitEVar(EVar *e_var)
 
 void Compiler::visitEVarArr(EVarArr *e_var_arr)
 {
-  /* Code For EVarArr Goes Here */
-
   visitIdent(e_var_arr->ident_);
   e_var_arr->expr_->accept(this);
-//TODO
+  typesStack.pop();
+
+  int offset = variablesMap.find(e_var_arr->ident_)->second;
+  typesStack.push(typesMap.find(e_var_arr->ident_)->second);
+
+  bufAppend("movq ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp), %rbx\n");
+  checkInBounds();
+  bufAppend("imulq $8, %rax\n");
+  bufAppend("addq %rax, %rbx\n");
+  bufAppend("movq (%rbx), %rax\n");
 }
 
 void Compiler::visitEAtr(EAtr *e_atr)
 {
-  /* Code For EAtr Goes Here */
-
   visitIdent(e_atr->ident_);
-//TODO
+  typesStack.push(INT_CODE);
+
+  int offset = variablesMap.find(e_atr->ident_)->second;
+  bufAppend("movq ");
+  bufAppend(std::to_string(offset));
+  bufAppend("(%rbp), %rbx\n");
+  bufAppend("subq $8, %rbx\n");
+  bufAppend("movq (%rbx), %rax\n");
 }
 
 void Compiler::visitELitInt(ELitInt *e_lit_int)
@@ -1098,7 +1223,6 @@ void Compiler::visitListSimpleType(ListSimpleType *list_simple_type)
   {
     (*i)->accept(this);
   }
-  //TODO
 }
 
 void Compiler::visitListArrType(ListArrType *list_arr_type)
@@ -1107,7 +1231,6 @@ void Compiler::visitListArrType(ListArrType *list_arr_type)
   {
     (*i)->accept(this);
   }
-  //TODO
 }
 
 void Compiler::visitListType(ListType *list_type)

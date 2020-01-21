@@ -112,11 +112,14 @@ private:
   void alignStack(int numberOfArgs);
   void removePadding();
   void freeStrings(std::unordered_set<int> allocatedStringsSet);
+  void checkInBounds();
+  void mallocArray();
 
   char *buf_;
   int cur_, buf_size;
   unsigned int andOrLabelCounter, stackCounter, condCounter, whileCounter, argCounter, stringConcatLabelCounter;
-  unsigned int functionLabelCounter, stackCounterBeforeFn, divisionCounter, skipFreeCounter;
+  unsigned int functionLabelCounter, stackCounterBeforeFn, divisionCounter, skipFreeCounter, inBoundsCounter;
+  unsigned int forEachCounter, checkArraySizeCounter;
   bool functionBlock;
   std::stack<int> typesStack;
   std::unordered_map<Ident, int> variablesMap;//<Ident, offset from RBP>
