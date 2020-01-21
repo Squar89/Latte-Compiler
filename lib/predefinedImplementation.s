@@ -9,13 +9,13 @@
   buffer: .space 100000
 
 .text
-  .globl _printInt
-  .globl _printString
-  .globl _error
-  .globl _readInt
-  .globl _readString
+  .globl printInt
+  .globl printString
+  .globl error
+  .globl readInt
+  .globl readString
 
-_printInt:
+printInt:
   push %rbp
   movq %rsp, %rbp
 
@@ -31,7 +31,7 @@ _printInt:
   lea formatPrintInt(%rip), %rdi
   movq 16(%rbp), %rsi
   xor %rax, %rax
-  call _printf
+  call printf
 
   popq %rdx
   addq %rdx, %rsp
@@ -41,7 +41,7 @@ _printInt:
   pop %rbp
   ret
 
-_printString:
+printString:
   push %rbp
   movq %rsp, %rbp
 
@@ -57,7 +57,7 @@ _printString:
   lea formatPrintString(%rip), %rdi
   movq 16(%rbp), %rsi
   xor %rax, %rax
-  call _printf
+  call printf
 
   #decrease reference count on argument string and free it if it drops to 0
   movq 16(%rbp), %rdi
@@ -65,7 +65,7 @@ _printString:
   decb (%rdi)
   cmpb $0, (%rdi)
   jne libSkipFree
-  call _free
+  call free
   libSkipFree:
 
   popq %rdx
@@ -76,7 +76,7 @@ _printString:
   pop %rbp
   ret
 
-_error:
+error:
   push %rbp
   movq %rsp, %rbp
 
@@ -90,21 +90,21 @@ _error:
   pushq %rdx
 
   lea errorMessage(%rip), %rdi
-  call _printf
+  call printf
 
   popq %rdx
   addq %rdx, %rsp
   popq %rbx
 
-  movl $0x2000001, %eax
-  movl $17, %edi
+  movq $60, %rax
+  movq $17, %rdi
   syscall
 
   movq %rbp, %rsp
   pop %rbp
   ret
 
-_readInt:
+readInt:
   push %rbp
   movq %rsp, %rbp
 
@@ -121,7 +121,7 @@ _readInt:
   xor   %rax, %rax
   leaq  formatReadInt(%rip), %rdi
   movq  %rsp, %rsi
-  call  _scanf
+  call  scanf
   movq  (%rsp), %rax
   addq  $8, %rsp
   
@@ -133,7 +133,7 @@ _readInt:
   pop %rbp
   ret
 
-_readString:
+readString:
   push %rbp
   movq %rsp, %rbp
   pushq %rbx
@@ -150,7 +150,7 @@ _readString:
   xor %rax, %rax
   leaq formatReadString(%rip), %rdi
   leaq buffer(%rip), %rsi
-  call _scanf
+  call scanf
   leaq buffer(%rip), %rax
 
   #count length of read string
@@ -162,7 +162,7 @@ _readString:
     cmpb $0, (%rax)
     jne count
   incq %rdi#make space for reference count
-  call _malloc
+  call malloc
   movb $0, (%rax)
   incq %rax
   movq %rax, %rbx

@@ -4,6 +4,7 @@
 #include <stack>
 #include <unordered_map>
 #include <unordered_set>
+#include <cstring>
 #include "Absyn.H"
 #include "Codes.H"
 
@@ -126,7 +127,7 @@ private:
   std::unordered_map<Ident, int> typesMap;//<Ident, type>
   std::unordered_set<int> allocatedStringsBlock, allocatedStringsFunction;//<offset from RBP>
 
-  std::string header = ".globl _main\n";
+  std::string header = ".globl main\n";
   std::string footer = "\n";
 
   /* Functions related to buffer storing result */

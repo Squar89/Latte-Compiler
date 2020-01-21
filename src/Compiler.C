@@ -85,7 +85,7 @@ void Compiler::freeStrings(std::unordered_set<int> allocatedStringsSet)
       bufAppend("jne skipFreeLabel");
       bufAppend(std::to_string(skipFreeCounter));
       bufAppend("\n");
-      bufAppend("call _free\n");
+      bufAppend("call free\n");
       bufAppend("skipFreeLabel");
       bufAppend(std::to_string(skipFreeCounter++));
       bufAppend(":\n");
@@ -106,7 +106,6 @@ void Compiler::visitFnDef(FnDef *fn_def)
   fn_def->type_->accept(this);
   typesStack.pop();
   visitIdent(fn_def->ident_);
-  bufAppend("_");
   bufAppend(fn_def->ident_);
   bufAppend(":\n");
 
@@ -242,7 +241,7 @@ void Compiler::mallocArray() {
   bufAppend(std::to_string(checkArraySizeCounter));
   bufAppend("\n");
   alignStack(0);
-  bufAppend("call _error\n");
+  bufAppend("call error\n");
   bufAppend("checkArraySize");
   bufAppend(std::to_string(checkArraySizeCounter++));
   bufAppend(":\n");
@@ -251,7 +250,7 @@ void Compiler::mallocArray() {
   bufAppend("addq $8, %rax\n");//add 8 additional bytes for storing array length 8 bytes before first element
   bufAppend("movq %rax, %rdi\n");
   alignStack(0);
-  bufAppend("call _malloc\n");
+  bufAppend("call malloc\n");
   removePadding();
   bufAppend("popq %rdx\n");
   bufAppend("movq %rdx, (%rax)\n");
@@ -295,7 +294,7 @@ void Compiler::visitAss(Ass *ass)
     bufAppend("jne skipFreeLabel");
     bufAppend(std::to_string(skipFreeCounter));
     bufAppend("\n");
-    bufAppend("call _free\n");
+    bufAppend("call free\n");
     bufAppend("skipFreeLabel");
     bufAppend(std::to_string(skipFreeCounter++));
     bufAppend(":\n");
@@ -354,7 +353,7 @@ void Compiler::checkInBounds() {
   bufAppend(std::to_string(inBoundsCounter));
   bufAppend("\n");
   alignStack(0);
-  bufAppend("call _error\n");
+  bufAppend("call error\n");
   bufAppend("inBoundsCheckLabel");
   bufAppend(std::to_string(inBoundsCounter++));
   bufAppend(":\n");
@@ -608,7 +607,7 @@ void Compiler::visitSExp(SExp *s_exp)
       bufAppend("movq %rax, %rdi\n");
       alignStack(0);
       bufAppend("decq %rdi\n");
-      bufAppend("call _free\n");
+      bufAppend("call free\n");
       removePadding();
     }
   }
@@ -835,7 +834,7 @@ void Compiler::visitEApp(EApp *e_app)
   argCounter = previousArgCounter;
 
   /* Append function call */
-  bufAppend("call _");
+  bufAppend("call ");
   bufAppend(e_app->ident_);
   bufAppend("\n");
 
@@ -916,7 +915,7 @@ void Compiler::visitEAdd(EAdd *e_add)
       bufAppend("movq %r12, %rdi\n");
       alignStack(0);
       bufAppend("decq %rdi\n");
-      bufAppend("call _free\n");
+      bufAppend("call free\n");
       removePadding();
     }
     e_var = dynamic_cast<EVar*>(e_add->expr_2);
@@ -925,7 +924,7 @@ void Compiler::visitEAdd(EAdd *e_add)
       bufAppend("movq %r13, %rdi\n");
       alignStack(0);
       bufAppend("decq %rdi\n");
-      bufAppend("call _free\n");
+      bufAppend("call free\n");
       removePadding();
     }
   }
@@ -1038,7 +1037,7 @@ void Compiler::visitPlus(Plus *plus)
     bufAppend(std::to_string(stringConcatLabelCounter));
     bufAppend("\n");
     /* Call malloc */
-    bufAppend("call _malloc\n");
+    bufAppend("call malloc\n");
     bufAppend("movb $0, (%rax)\n");
     bufAppend("incq %rax\n");
     bufAppend("movq %rax, %r14\n");//result string address
@@ -1102,13 +1101,13 @@ void Compiler::visitTimes(Times *times)
 }
 
 void Compiler::performDiv() {
-  bufAppend("cmpq $0, %rax\n");
+  bufAppend("cmpq $0, %rbx\n");
   bufAppend("jne PerformDivLabel");
   bufAppend(std::to_string(divisionCounter));
   bufAppend("\n");
   /* Division by 0 attempt discovered */
   alignStack(0);
-  bufAppend("call _error\n");
+  bufAppend("call error\n");
 
   bufAppend("PerformDivLabel");
   bufAppend(std::to_string(divisionCounter++));
@@ -1315,7 +1314,7 @@ void Compiler::visitString(String x)
   bufAppend(", %rdi\n");
 
   /* (ReferenceCount|Characters|Null limiter) with sizes (1|x|1) */
-  bufAppend("call _malloc\n");
+  bufAppend("call malloc\n");
   bufAppend("movb $0, (%rax)\n");
   bufAppend("incq %rax\n");
   bufAppend("movq %rax, %rbx\n");

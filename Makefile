@@ -45,5 +45,5 @@ Compiler.o: ${SRC_DIR}/Compiler.C ${SRC_DIR}/Compiler.H ${SRC_DIR}/Absyn.H ${SRC
 Analyser.o: ${SRC_DIR}/Analyser.C ${SRC_DIR}/Analyser.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Codes.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Analyser.C
 
-Latc.o: ${SRC_DIR}/Latc.C ${SRC_DIR}/Parser.H ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Analyser.H ${SRC_DIR}/Compiler.H
+Latc.o: ${SRC_DIR}/Parser.H ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Analyser.H ${SRC_DIR}/Compiler.H
 	${CC} ${CCFLAGS} -c ${SRC_DIR}/Latc.C
