@@ -242,7 +242,7 @@ void Compiler::mallocArray() {
   bufAppend(std::to_string(checkArraySizeCounter));
   bufAppend("\n");
   alignStack(0);
-  bufAppend("call _exit\n");
+  bufAppend("call _error\n");
   bufAppend("checkArraySize");
   bufAppend(std::to_string(checkArraySizeCounter++));
   bufAppend(":\n");
@@ -354,7 +354,7 @@ void Compiler::checkInBounds() {
   bufAppend(std::to_string(inBoundsCounter));
   bufAppend("\n");
   alignStack(0);
-  bufAppend("call _exit\n");
+  bufAppend("call _error\n");
   bufAppend("inBoundsCheckLabel");
   bufAppend(std::to_string(inBoundsCounter++));
   bufAppend(":\n");
@@ -1108,7 +1108,7 @@ void Compiler::performDiv() {
   bufAppend("\n");
   /* Division by 0 attempt discovered */
   alignStack(0);
-  bufAppend("call _exit\n");
+  bufAppend("call _error\n");
 
   bufAppend("PerformDivLabel");
   bufAppend(std::to_string(divisionCounter++));

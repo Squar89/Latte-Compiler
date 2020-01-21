@@ -3,6 +3,7 @@
   formatPrintString: .asciz "%s\n"
   formatReadInt: .asciz "%d"
   formatReadString: .asciz "%s"
+  errorMessage: .asciz "runtime error\n"
 
 .bss
   buffer: .space 100000
@@ -76,9 +77,32 @@ _printString:
   ret
 
 _error:
+  push %rbp
+  movq %rsp, %rbp
+
+  pushq %rbx
+  movq %rsp, %rax
+  subq $8, %rax
+  xorq %rdx, %rdx
+  movq $16, %rcx
+  idivq %rcx
+  subq %rdx, %rsp
+  pushq %rdx
+
+  lea errorMessage(%rip), %rdi
+  call _printf
+
+  popq %rdx
+  addq %rdx, %rsp
+  popq %rbx
+
   movl $0x2000001, %eax
   movl $17, %edi
   syscall
+
+  movq %rbp, %rsp
+  pop %rbp
+  ret
 
 _readInt:
   push %rbp

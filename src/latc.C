@@ -5,58 +5,71 @@
 /*                                                                          */
 /****************************************************************************/
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <filesystem>
 #include "Parser.H"
-#include "Printer.H"
 #include "Absyn.H"
+#include "Analyser.H"
+#include "Compiler.H"
 
 void usage() {
-  printf("usage: Call with one of the following argument combinations:\n");
-  printf("\t--help\t\tDisplay this help message.\n");
-  printf("\t(no arguments)  Parse stdin verbosely.\n");
-  printf("\t(files)\t\tParse content of files verbosely.\n");
-  printf("\t-s (files)\tSilent mode. Parse content of files silently.\n");
+  printf("usage: latc_86_64 inputFilePath\n");
 }
 
-int main(int argc, char ** argv)
-{
-  FILE *input;
-  int quiet = 0;
-  char *filename = NULL;
+int main(int argc, char ** argv) {
+  FILE *input, *libFun;
+  Analyser *analyser;
+  Compiler *compiler;
+  char *inputFilename = NULL;
+  bool noExtensions = false;
 
-  if (argc > 1) {
-    if (strcmp(argv[1], "-s") == 0) {
-      quiet = 1;
-      if (argc > 2) {
-        filename = argv[2];
-      } else {
-        input = stdin;
-      }
-    } else {
-      filename = argv[1];
-    }
-  }
-
-  if (filename) {
-    input = fopen(filename, "r");
+  if (argc == 2) {
+    inputFilename = argv[1];
+    input = fopen(inputFilename, "r");
     if (!input) {
       usage();
       exit(1);
     }
-  } else input = stdin;
-  /* The default entry point is used. For other options see Parser.H */
+  }
+  else {
+    usage();
+    exit(1);
+  }
+
+  std::string inputFilenameStr = std::string(inputFilename);
+  std::string outputFilename = inputFilenameStr.substr(0, inputFilenameStr.find_last_of('.'));
+  if (outputFilename.empty()) {
+    noExtensions = true;
+    outputFilename = inputFilenameStr;
+  }
+  std::ofstream output(outputFilename + ".s");
+
+  /* Parse lib functions */
+  libFun = fopen("lib/predefinedFunctions.txt", "r");
+  if (!libFun) {
+    fprintf(stderr, "ERROR\nCouldn't find file \'lib/predefinedFunctions.txt\'\n");
+    exit(1);
+  }
+  Program *parsed_lib = pProgram(libFun);
+
   Program *parse_tree = pProgram(input);
-  if (parse_tree)
-  {
-    printf("\nParse Succesful!\n");
-    if (!quiet) {
-      printf("\n[Abstract Syntax]\n");
-      ShowAbsyn *s = new ShowAbsyn();
-      printf("%s\n\n", s->show(parse_tree));
-      printf("[Linearized Tree]\n");
-      PrintAbsyn *p = new PrintAbsyn();
-      printf("%s\n\n", p->print(parse_tree));
-    }
+  if (parse_tree) {
+    analyser = new Analyser();
+    analyser->analyseProgram(parse_tree, parsed_lib);
+    //printf("\nCode check succesful!\n\n");
+    
+    compiler = new Compiler();
+    //printf("\n\nCompiler result:\n");
+    output << compiler->compile(parse_tree, parsed_lib);
+    output.close();
+
+    system(("gcc -m64 " + outputFilename + ".s lib/runtime.o -o " + outputFilename + (noExtensions ? "latc" : "")).c_str());
+
+    fprintf(stderr, "OK\n");    
     return 0;
   }
   return 1;

@@ -13,14 +13,13 @@ SRC_DIR=src
 
 .PHONY: clean distclean
 
-all: TestLatte
+all: Latc
 
 clean:
-	rm -f *.o TestLatte asm_result out.s
+	rm -f *.o latc_x86_64
 
-TestLatte: ${OBJS} Test.o
-	@echo "Linking TestLatte..."
-	${CC} ${CCFLAGS} ${OBJS} Test.o -o TestLatte
+Latc: ${OBJS} Latc.o
+	${CC} ${CCFLAGS} ${OBJS} Latc.o -o latc_x86_64
 
 Absyn.o: ${SRC_DIR}/Absyn.C ${SRC_DIR}/Absyn.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Absyn.C
@@ -46,5 +45,5 @@ Compiler.o: ${SRC_DIR}/Compiler.C ${SRC_DIR}/Compiler.H ${SRC_DIR}/Absyn.H ${SRC
 Analyser.o: ${SRC_DIR}/Analyser.C ${SRC_DIR}/Analyser.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Codes.H
 	${CC} ${CCFLAGS} -Wno-unused-parameter -c ${SRC_DIR}/Analyser.C
 
-Test.o: ${SRC_DIR}/Test.C ${SRC_DIR}/Parser.H ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Analyser.H ${SRC_DIR}/Compiler.H
-	${CC} ${CCFLAGS} -c ${SRC_DIR}/Test.C
+Latc.o: ${SRC_DIR}/Latc.C ${SRC_DIR}/Parser.H ${SRC_DIR}/Printer.H ${SRC_DIR}/Absyn.H ${SRC_DIR}/Analyser.H ${SRC_DIR}/Compiler.H
+	${CC} ${CCFLAGS} -c ${SRC_DIR}/Latc.C
