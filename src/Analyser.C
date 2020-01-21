@@ -21,8 +21,6 @@ void Analyser::visitRelOp(RelOp *t) {} //abstract class
  * Correct main function has main as it's name,
  * takes no arguments and returns an int */
 bool Analyser::correctMainExists() {
-  //std::cout << "correctMainExists\n";
-
   /* Name is "main" */
   auto it = functionsMap.find("main");
   if (it == functionsMap.end()) {
@@ -47,7 +45,6 @@ bool Analyser::correctMainExists() {
 /* Entry point, start of the frontend to the compiler */
 void Analyser::analyseProgram(Program *p, Program *lib)
 {
-  //std::cout << "analyseProgram\n";
   /* Prepare all used variables and structures */
   functionsMap.clear();
   variablesMap.clear();
@@ -81,7 +78,6 @@ void Analyser::analyseProgram(Program *p, Program *lib)
  * e.g. There can't be two functions with different arguments sharing the same name */
 void Analyser::getFunctionsDefinitions(Prog *prog)
 {
-  //std::cout << "getFunctionsDefinitions\n";
   ListTopDef *list_top_def = prog->listtopdef_;
 
   /* The only thing we want from these definitions is to save them, there is no need to visit them yet */
@@ -102,7 +98,6 @@ void Analyser::getFunctionsDefinitions(Prog *prog)
  * and exits with an error if they are different */
 void Analyser::checkTypesMatch(int lineNumber)
 {
-  //std::cout << "checkTypesMatch\n";
   int type1, type2;
 
   if (!typesStack.empty()) {
@@ -133,7 +128,6 @@ void Analyser::checkTypesMatch(int lineNumber)
 /* This function looks for a declared function with name equal to ident in functionsMap
  * and then compares it's arguments list with call's arguments list provided in reversedCallTypes */
 void Analyser::checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<int> &reversedCallTypes) {
-  //std::cout << "checkTypesFunctionCall\n";
   /* Check if function with provided name was declared */
   auto it = functionsMap.find(ident);
   if (it == functionsMap.end()) {
@@ -169,18 +163,15 @@ void Analyser::checkTypesFunctionCall(int lineNumber, Ident ident, std::vector<i
     exit(FUNCTION_NOT_FOUND);
   }
   typesStack.pop();//pop PAUSE_CODE
-  //std::cout << "Exiting checkTypesFunctionCall\n";
 }
 
 void Analyser::visitProg(Prog *prog)
 {
-  //std::cout << "Prog\n";
   prog->listtopdef_->accept(this);
 }
 
 void Analyser::visitFnDef(FnDef *fn_def)
 {
-  //std::cout << "FnDef\n";
   visitIdent(fn_def->ident_);
   fn_def->type_->accept(this);
 
@@ -229,7 +220,6 @@ void Analyser::visitFnDef(FnDef *fn_def)
 
 void Analyser::visitAr(Ar *ar)
 {
-  //std::cout << "Ar\n";
   ar->type_->accept(this);
   visitIdent(ar->ident_);
 
@@ -244,12 +234,10 @@ void Analyser::visitAr(Ar *ar)
   if (typesStack.top() > AR_TYPE_OFFSET) {
     arraysMap.insert(std::make_pair(ar->ident_, std::make_pair(true, 0)));
   }
-  //std::cout << "Exiting Ar\n";
 }
 
 void Analyser::visitBlk(Blk *blk)
 {
-  //std::cout << "Blk\n";
   currentDepth++;
 
   /* Prepare overshadowed variables vector for this block.
@@ -262,6 +250,8 @@ void Analyser::visitBlk(Blk *blk)
   std::vector<std::pair<Ident, std::pair<int, unsigned long> > > overshadowedVariables;
   localRedeclVar.push_back(overshadowedVariables);
 
+  /* Prepare overshadowed arrays vector for this block.
+   * It will store arrays and it's info to restore them on leave. */
   if (localRedeclArr.size() != currentDepth) {
     fprintf(stderr, "ERROR\nUnexpected error occurred at line %d (Wrong localRedeclArr size).\n", blk->line_number);
     exit(UNEXPECTED_ERROR);
@@ -332,27 +322,21 @@ void Analyser::visitEmpty(Empty *empty) {/* Do nothing */}
 
 void Analyser::visitBStmt(BStmt *b_stmt)
 {
-  //std::cout << "BStmt\n";
   b_stmt->block_->accept(this);
 }
 
 void Analyser::visitDecl(Decl *decl)
 {
-  //std::cout << "Decl\n";
-  //std::cout << typesStack.size() << "<-sizeEntry\n";
   lastStmtWasReturn = false;
 
   /* This visit should leave declaration type on the stack */
   decl->simpletype_->accept(this);
-
-  //std::cout << typesStack.top() << "<-type\n";
 
   /* Visit each item (Ident OR Ident = Expr) and add them to the declared variables */
   decl->listitem_->accept(this);
 
   /* Remove declaration type from the stack */
   typesStack.pop();
-  //std::cout << typesStack.size() << "<-sizeLeave\n";
 }
 
 void Analyser::visitDeclArr(DeclArr *decl_arr)
@@ -409,7 +393,6 @@ void Analyser::visitInitArrSt(InitArrSt *init_arr_st)
 
 void Analyser::visitAss(Ass *ass)
 {
-  //std::cout << "Ass\n";
   lastStmtWasReturn = false;
   visitIdent(ass->ident_);
   ass->expr_->accept(this);
@@ -456,7 +439,7 @@ void Analyser::visitAssArr(AssArr *ass_arr)
   }
   typesStack.pop();
 
-  /* Check if expression's type match the array's type */
+  /* Check if expression's type matches the array's type */
   ass_arr->expr_2->accept(this);
   if (auto it = variablesMap.find(ass_arr->ident_); it != variablesMap.end()) {
     if (it->second.first - AR_TYPE_OFFSET != typesStack.top()) {
@@ -474,7 +457,6 @@ void Analyser::visitAssArr(AssArr *ass_arr)
 
 void Analyser::visitIncr(Incr *incr)
 {
-  //std::cout << "Incr\n";
   lastStmtWasReturn = false;
   visitIdent(incr->ident_);
 
@@ -533,7 +515,6 @@ void Analyser::visitIncrArr(IncrArr *incr_arr)
 
 void Analyser::visitDecr(Decr *decr)
 {
-  //std::cout << "Decr\n";
   lastStmtWasReturn = false;
   visitIdent(decr->ident_);
 
@@ -592,7 +573,6 @@ void Analyser::visitDecrArr(DecrArr *decr_arr)
 
 void Analyser::visitRet(Ret *ret)
 {
-  //std::cout << "Ret\n";
   ret->expr_->accept(this);
 
   returnFound = true;
@@ -610,7 +590,6 @@ void Analyser::visitRet(Ret *ret)
 
 void Analyser::visitVRet(VRet *v_ret)
 {
-  //std::cout << "VRet\n";
   returnFound = true;
   lastStmtWasReturn = true;
 
@@ -623,7 +602,6 @@ void Analyser::visitVRet(VRet *v_ret)
 
 void Analyser::visitCond(Cond *cond)
 {
-  //std::cout << "Cond\n";
   lastStmtWasReturn = false;
   cond->expr_->accept(this);
 
@@ -649,7 +627,6 @@ void Analyser::visitCond(Cond *cond)
 
 void Analyser::visitCondElse(CondElse *cond_else)
 {
-  //std::cout << "CondElse\n";
   bool ifHadReturn = false;
   bool elseHadReturn = false;
   lastStmtWasReturn = false;
@@ -693,7 +670,6 @@ void Analyser::visitCondElse(CondElse *cond_else)
 
 void Analyser::visitWhile(While *while_)
 {
-  //std::cout << "While\n";
   lastStmtWasReturn = false;
   while_->expr_->accept(this);
 
@@ -771,6 +747,7 @@ void Analyser::visitForEach(ForEach *for_each)
 
   for_each->stmt_->accept(this);
 
+  /* Restore previous variables and arrays */
   variablesMap.erase(for_each->ident_1);
   if (overshadow) {
     variablesMap.insert(std::make_pair(for_each->ident_1, shadowedVar));
@@ -782,7 +759,6 @@ void Analyser::visitForEach(ForEach *for_each)
 
 void Analyser::visitSExp(SExp *s_exp)
 {
-  //std::cout << "SExp\n";
   lastStmtWasReturn = false;
   s_exp->expr_->accept(this);
 
@@ -791,7 +767,6 @@ void Analyser::visitSExp(SExp *s_exp)
 }
 
 void Analyser::declareVariable(Ident ident, int lineNumber, bool isArray, bool arrayInitialized) {
-  //std::cout << "declareVariable\n";
   /* Check if this variable was declared before */
   if (auto it = variablesMap.find(ident); it != variablesMap.end()) {
     /* Check if this variable was declared in the current block */
@@ -831,14 +806,12 @@ void Analyser::declareVariable(Ident ident, int lineNumber, bool isArray, bool a
 
 void Analyser::visitNoInit(NoInit *no_init)
 {
-  //std::cout << "NoInit\n";
   visitIdent(no_init->ident_);
   declareVariable(no_init->ident_, no_init->line_number, false, false);
 }
 
 void Analyser::visitInit(Init *init)
 {
-  //std::cout << "Init\n";
   visitIdent(init->ident_);
   init->expr_->accept(this);
 
@@ -909,25 +882,21 @@ void Analyser::visitInitArrE(InitArrE *init_arr_e)
 
 void Analyser::visitInt(Int *int_)
 {
-  //std::cout << "visitInt\n";
   typesStack.push(INT_CODE);
 }
 
 void Analyser::visitStr(Str *str)
 {
-  //std::cout << "visitStr\n";
   typesStack.push(STRING_CODE);
 }
 
 void Analyser::visitBool(Bool *bool_)
 {
-  //std::cout << "visitBool\n";
   typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitVoid(Void *void_)
 {
-  //std::cout << "visitVoid\n";
   typesStack.push(VOID_CODE);
 }
 
@@ -949,7 +918,6 @@ void Analyser::visitAbsST(AbsST *abs_st)
 
 void Analyser::visitEVar(EVar *e_var)
 {
-  //std::cout << "visitEVar\n";
   visitIdent(e_var->ident_);
 
   /* Check if variable with this ident was declared and if so, push it's type onto the stack */
@@ -1018,25 +986,21 @@ void Analyser::visitEAtr(EAtr *e_atr)
 
 void Analyser::visitELitInt(ELitInt *e_lit_int)
 {
-  //std::cout << "visitELitInt\n";
   visitInteger(e_lit_int->integer_);
 }
 
 void Analyser::visitELitTrue(ELitTrue *e_lit_true)
 {
-  //std::cout << "visitELitTrue\n";
   typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitELitFalse(ELitFalse *e_lit_false)
 {
-  //std::cout << "visitELitFalse\n";
   typesStack.push(BOOL_CODE);
 }
 
 void Analyser::visitEApp(EApp *e_app)
 {
-  //std::cout << "visitEApp\n";
   /* PAUSE_CODE allows for counting of stack elements.
    * We won't access any stack element not owned by this function */
   typesStack.push(PAUSE_CODE);
@@ -1060,13 +1024,11 @@ void Analyser::visitEApp(EApp *e_app)
 
 void Analyser::visitEString(EString *e_string)
 {
-  //std::cout << "visitEString\n";
   visitString(e_string->string_);
 }
 
 void Analyser::visitNeg(Neg *neg)
 {
-  //std::cout << "visitNeg\n";
   neg->expr_->accept(this);
 
   /* Expression must be of type int or boolean */
@@ -1078,7 +1040,6 @@ void Analyser::visitNeg(Neg *neg)
 
 void Analyser::visitNot(Not *not_)
 {
-  //std::cout << "visitNot\n";
   not_->expr_->accept(this);
 
   /* Expression must be of type boolean */
@@ -1090,7 +1051,6 @@ void Analyser::visitNot(Not *not_)
 
 void Analyser::visitEMul(EMul *e_mul)
 {
-  //std::cout << "visitEMul\n";
   e_mul->expr_1->accept(this);
   e_mul->mulop_->accept(this);
   e_mul->expr_2->accept(this);
@@ -1112,7 +1072,6 @@ void Analyser::visitEMul(EMul *e_mul)
 
 void Analyser::visitEAdd(EAdd *e_add)
 {
-  //std::cout << "visitEAdd\n";
   e_add->expr_1->accept(this);
   e_add->addop_->accept(this);
   e_add->expr_2->accept(this);
@@ -1134,7 +1093,6 @@ void Analyser::visitEAdd(EAdd *e_add)
 
 void Analyser::visitERel(ERel *e_rel)
 {
-  //std::cout << "visitERel\n";
   e_rel->expr_1->accept(this);
   e_rel->relop_->accept(this);
   e_rel->expr_2->accept(this);
@@ -1156,7 +1114,6 @@ void Analyser::visitERel(ERel *e_rel)
 
 void Analyser::visitEAnd(EAnd *e_and)
 {
-  //std::cout << "visitEAnd\n";
   e_and->expr_1->accept(this);
   e_and->expr_2->accept(this);
 
@@ -1177,7 +1134,6 @@ void Analyser::visitEAnd(EAnd *e_and)
 
 void Analyser::visitEOr(EOr *e_or)
 {
-  //std::cout << "visitEOr\n";
   e_or->expr_1->accept(this);
   e_or->expr_2->accept(this);
 
@@ -1226,7 +1182,6 @@ void Analyser::visitNE(NE *ne) {/* Do nothing */}
 
 void Analyser::visitListTopDef(ListTopDef *list_top_def)
 {
-  //std::cout << "visitListTopDef\n";
   for (ListTopDef::iterator i = list_top_def->begin() ; i != list_top_def->end() ; ++i)
   {
     (*i)->accept(this);
@@ -1235,17 +1190,15 @@ void Analyser::visitListTopDef(ListTopDef *list_top_def)
 
 void Analyser::visitListArg(ListArg *list_arg)
 {
-  //std::cout << "visitListArg\n";
   for (ListArg::iterator i = list_arg->begin() ; i != list_arg->end() ; ++i)
   {
     (*i)->accept(this);
   }
-  //std::cout << "Exiting visitListArg\n";
+  
 }
 
 void Analyser::visitListStmt(ListStmt *list_stmt)
 {
-  //std::cout << "visitListStmt\n";
   for (ListStmt::iterator i = list_stmt->begin() ; i != list_stmt->end() ; ++i)
   {
     (*i)->accept(this);
@@ -1254,7 +1207,6 @@ void Analyser::visitListStmt(ListStmt *list_stmt)
 
 void Analyser::visitListItem(ListItem *list_item)
 {
-  //std::cout << "visitListItem\n";
   for (ListItem::iterator i = list_item->begin() ; i != list_item->end() ; ++i)
   {
     (*i)->accept(this);
@@ -1279,7 +1231,6 @@ void Analyser::visitListArrType(ListArrType *list_arr_type)
 
 void Analyser::visitListType(ListType *list_type)
 {
-  //std::cout << "visitListType\n";
   for (ListType::iterator i = list_type->begin() ; i != list_type->end() ; ++i)
   {
     (*i)->accept(this);
@@ -1288,7 +1239,6 @@ void Analyser::visitListType(ListType *list_type)
 
 void Analyser::visitListExpr(ListExpr *list_expr)
 {
-  //std::cout << "visitListExpr\n";
   for (ListExpr::iterator i = list_expr->begin() ; i != list_expr->end() ; ++i)
   {
     (*i)->accept(this);
@@ -1298,25 +1248,21 @@ void Analyser::visitListExpr(ListExpr *list_expr)
 
 void Analyser::visitInteger(Integer x)
 {
-  //std::cout << "visitInteger\n";
   typesStack.push(INT_CODE);
 }
 
 void Analyser::visitChar(Char x)
 {
-  //std::cout << "visitChar\n";
   typesStack.push(CHAR_CODE);
 }
 
 void Analyser::visitDouble(Double x)
 {
-  //std::cout << "visitDouble\n";
   typesStack.push(DOUBLE_CODE);
 }
 
 void Analyser::visitString(String x)
 {
-  //std::cout << "visitString\n";
   typesStack.push(STRING_CODE);
 }
 
