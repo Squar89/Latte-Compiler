@@ -1,6 +1,12 @@
-int main () {  
-
-
-return 5/0 ;
+string f(string s, int i) {
+    if (i == 0) {
+        return s;
+    } else {
+        return "" + f(s, i - 1);
+    }
 }
- 
+
+int main() {
+    printString(f("x", 7));
+    return 0;
+}

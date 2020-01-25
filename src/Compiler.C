@@ -389,7 +389,8 @@ void Compiler::visitRet(Ret *ret)
   int offsetToSkip;
   bool skip = false;
 
-  /* If we are returning a string and it was stored in a variable, prevent it from being freed in a second */
+  /* If we are returning a string and it was stored in a variable, prevent it from being freed in a second
+   * But decrement it's reference count as it is no longer a variable, even though it might be in a second */
   if (typesStack.top() == STRING_CODE) {
     EVar *e_var = dynamic_cast<EVar*>(ret->expr_);
     if (e_var != NULL) {
@@ -401,7 +402,14 @@ void Compiler::visitRet(Ret *ret)
   typesStack.pop();
 
   freeStrings(allocatedStringsFunction);
-  if (skip) {
+  if (skip) {//this will enter only if we are returning a string variable
+    /* Decrement reference counter of returned value */
+    bufAppend("movq ");
+    bufAppend(std::to_string(offsetToSkip));
+    bufAppend("(%rbp), %rdi\n");
+    bufAppend("decq %rdi\n");
+    bufAppend("decb (%rdi)\n");
+
     allocatedStringsFunction.insert(offsetToSkip);
   }
 
@@ -567,17 +575,22 @@ void Compiler::visitSExp(SExp *s_exp)
 {
   s_exp->expr_->accept(this);
   
-  /* If the expression was of string type and is not a variable then free the string */
+  /* If the expression was of string type and is not a variable/argument then free the string */
   if (typesStack.top() == STRING_CODE) {
-    EVar *e_var = dynamic_cast<EVar*>(s_exp->expr_);
-    if (e_var == NULL) {
-      /* Now we know that this expression wasn't a variable */
-      bufAppend("movq %rax, %rdi\n");
-      alignStack(0);
-      bufAppend("decq %rdi\n");
-      bufAppend("call free\n");
-      removePadding();
-    }
+    /* Only variables/arguments have references count different than 0
+     * If it equals 0, then it is not a variable/argument and should be freed */
+    bufAppend("cmpb $0, -1(%rax)\n");
+    bufAppend("jne skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter));
+    bufAppend("\n");
+    bufAppend("movq %rax, %rdi\n");
+    bufAppend("decq %rdi\n");
+    alignStack(0);
+    bufAppend("call free\n");
+    removePadding();
+    bufAppend("skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter++));
+    bufAppend(":\n");
   }
 
   typesStack.pop();
@@ -768,13 +781,12 @@ void Compiler::visitEApp(EApp *e_app)
   int previousArgCounter = argCounter;
   argCounter = 0;
   countArgs(e_app->listexpr_);//this function won't execute these expressions, it will just count them
-
   alignStack(argCounter);
+  int localArgCounter = argCounter;
 
   /* Push args onto the stack */
   pushArgsOntoStack(e_app->listexpr_);
 
-  int localArgCounter = argCounter;
   argCounter = previousArgCounter;
 
   /* Append function call */
@@ -827,45 +839,58 @@ void Compiler::visitEMul(EMul *e_mul)
 }
 
 void Compiler::visitEAdd(EAdd *e_add)
-{
-  bufAppend("pushq %r12\n");
-  bufAppend("pushq %r13\n");
-  
+{ 
   e_add->expr_1->accept(this);
   bufAppend("pushq %rax\n");
   e_add->expr_2->accept(this);
   bufAppend("movq %rax, %rbx\n");
   bufAppend("popq %rax\n");
-  bufAppend("movq %rax, %r12\n");//store first string's address
-  bufAppend("movq %rbx, %r13\n");//store second string's address
+  if (typesStack.top() == STRING_CODE) {
+    bufAppend("pushq %r12\n");
+    bufAppend("pushq %r13\n");
+
+    bufAppend("movq %rax, %r12\n");//store first string's address
+    bufAppend("movq %rbx, %r13\n");//store second string's address
+  }
   e_add->addop_->accept(this);
-  bufAppend("pushq %rax\n");
 
   /* Check if any of the used expressions was a string that needs to be freed */
   if (typesStack.top() == STRING_CODE) {
-    EVar *e_var = dynamic_cast<EVar*>(e_add->expr_1);
-    if (e_var == NULL) {
-      /* Now we know that this expression wasn't a variable */
-      bufAppend("movq %r12, %rdi\n");
-      alignStack(0);
-      bufAppend("decq %rdi\n");
-      bufAppend("call free\n");
-      removePadding();
-    }
-    e_var = dynamic_cast<EVar*>(e_add->expr_2);
-    if (e_var == NULL) {
-      /* Now we know that this expression wasn't a variable */
-      bufAppend("movq %r13, %rdi\n");
-      alignStack(0);
-      bufAppend("decq %rdi\n");
-      bufAppend("call free\n");
-      removePadding();
-    }
-  }
+    bufAppend("pushq %rax\n");
 
-  bufAppend("popq %rax\n");
-  bufAppend("popq %r13\n");
-  bufAppend("popq %r12\n");
+    /* Only variables/arguments have references count different than 0
+     * If it equals 0, then it is not a variable/argument and should be freed */
+    bufAppend("movq %r12, %rdi\n");
+    bufAppend("cmpb $0, -1(%rdi)\n");
+    bufAppend("jne skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter));
+    bufAppend("\n");
+    alignStack(0);
+    bufAppend("decq %rdi\n");
+    bufAppend("call free\n");
+    removePadding();
+    bufAppend("skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter++));
+    bufAppend(":\n");
+
+    /* Second expression */
+    bufAppend("movq %r13, %rdi\n");
+    bufAppend("cmpb $0, -1(%rdi)\n");
+    bufAppend("jne skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter));
+    bufAppend("\n");
+    alignStack(0);
+    bufAppend("decq %rdi\n");
+    bufAppend("call free\n");
+    removePadding();
+    bufAppend("skipFreeLabel");
+    bufAppend(std::to_string(skipFreeCounter++));
+    bufAppend(":\n");
+  
+    bufAppend("popq %rax\n");
+    bufAppend("popq %r13\n");
+    bufAppend("popq %r12\n");
+  }
 
   /* pop one type code and leave the other */
   typesStack.pop();
